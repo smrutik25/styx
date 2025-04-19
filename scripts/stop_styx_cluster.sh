@@ -1,6 +1,6 @@
 #!/bin/bash
 
-docker compose logs worker > worker-logs.log
+docker compose logs worker | sort -s -t '|' -k1,1 > worker-logs.log
 docker compose logs coordinator > coordinator-logs.log
 if docker compose ps --services | grep 'query-engine'; then
   docker compose -f docker-compose-query-engine.yml logs query-engine > query-engine-logs.log

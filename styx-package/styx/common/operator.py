@@ -25,6 +25,9 @@ class Operator(BaseOperator):
         self.__is_shadow: bool = False
         self.__schema: list[ColumnSchema] = []
 
+    def get_partitioner(self) -> HashPartitioner:
+        return self.__partitioner
+
     def which_partition(self, key):
         return self.__partitioner.get_partition(key)
 
