@@ -1,5 +1,6 @@
 import sys
 import time
+import os
 import multiprocessing
 from multiprocessing import Pool
 
@@ -31,11 +32,11 @@ sleeps_per_second = 100
 sleep_time = 0.0085
 seconds = int(sys.argv[6])
 key_list: list[int] = list(range(N_ENTITIES))
-STYX_HOST: str = 'localhost'
-STYX_PORT: int = 8886
+STYX_HOST: str = os.getenv("STYX_HOST", 'localhost')
+STYX_PORT: int = int(os.getenv("STYX_PORT", 8886))
 # STYX_HOST: str = '35.229.80.128'
 # STYX_PORT: int = 8888
-KAFKA_URL = 'localhost:9092'
+KAFKA_URL: str = os.getenv("KAFKA_URL", 'localhost:9092')
 # KAFKA_URL = '35.229.114.18:9094'
 SAVE_DIR: str = sys.argv[7]
 warmup_seconds: int = int(sys.argv[8])
@@ -44,6 +45,7 @@ run_with_validation = bool(sys.argv[9])
 g = StateflowGraph('ycsb-benchmark', operator_state_backend=LocalStateBackend.DICT)
 ycsb_operator.set_n_partitions(N_PARTITIONS)
 g.add_operators(ycsb_operator)
+
 
 def submit_graph(styx: SyncStyxClient):
     print(f'Partitions: {list(g.nodes.values())[0].n_partitions}')

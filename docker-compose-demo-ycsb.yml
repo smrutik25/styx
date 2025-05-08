@@ -1,0 +1,12 @@
+services:
+  demo-ycsb:
+    build:
+      context: .
+      dockerfile: demo/demo-ycsb/Dockerfile
+    image: dev/styx-wdm-demo-ycsb:latest
+    environment:
+      - STYX_HOST=coordinator
+      - STYX_PORT=8888
+      - KAFKA_URL=kafka1:19092
+    volumes:
+      - ./results:/results
