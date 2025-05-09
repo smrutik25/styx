@@ -46,6 +46,10 @@ g = StateflowGraph('ycsb-benchmark', operator_state_backend=LocalStateBackend.DI
 ycsb_operator.set_n_partitions(N_PARTITIONS)
 g.add_operators(ycsb_operator)
 
+print("Init client with properties:")
+print(STYX_HOST)
+print(STYX_PORT)
+print(KAFKA_URL)
 
 def submit_graph(styx: SyncStyxClient):
     print(f'Partitions: {list(g.nodes.values())[0].n_partitions}')

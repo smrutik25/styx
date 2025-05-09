@@ -1,4 +1,5 @@
 import sys
+import os
 
 from aiokafka import AIOKafkaConsumer
 import asyncio
@@ -8,6 +9,7 @@ import uvloop
 from styx.common.serialization import msgpack_deserialization
 
 from client import g
+
 
 
 def all_egress_topics_created(topics: set[str], egress_topic_names: list[str]):
@@ -23,11 +25,12 @@ async def consume(save_dir):
 
     print('Start consumer')
     records = []
+    bootstrap_servers = os.getenv("KAFKA_URL", "localhost:9092")
 
     consumer = AIOKafkaConsumer(
         auto_offset_reset='earliest',
         value_deserializer=msgpack_deserialization,
-        bootstrap_servers='localhost:9092')
+        bootstrap_servers=bootstrap_servers)
     await consumer.start()
     topics = []
     # Ensure topic is created by the producer (and not auto-created by this
