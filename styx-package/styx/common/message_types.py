@@ -38,5 +38,8 @@ class MessageType(IntEnum):
     SnapTakeSnapshot = 32
     SnapNAssigned = 33
     ResponseToRoot = 34
+    ReceiveMigrationHashes = 35
+    RequestRemoteKey = 36
+    ReceiveRemoteKey = 37
     AlignStart = 100
     AlignEnd = 101
