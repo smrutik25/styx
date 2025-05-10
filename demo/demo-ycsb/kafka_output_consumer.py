@@ -26,6 +26,7 @@ async def consume(save_dir):
     print('Start consumer')
     records = []
     bootstrap_servers = os.getenv("KAFKA_URL", "localhost:9092")
+    print(f"Output consumer : {bootstrap_servers}")
 
     consumer = AIOKafkaConsumer(
         auto_offset_reset='earliest',
@@ -48,6 +49,7 @@ async def consume(save_dir):
         while True:
             data = await consumer.getmany(timeout_ms=10_000)
             if not data:
+                print("No data received by consumer")
                 break
             for messages in data.values():
                 for msg in messages:

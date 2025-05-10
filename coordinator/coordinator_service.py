@@ -70,7 +70,7 @@ class CoordinatorService(object):
         self.protocol_socket.bind(('0.0.0.0', SERVER_PORT + 1))
         self.protocol_socket.setblocking(False)
 
-        self.aria_metadata: AriaSyncMetadata = ...
+        self.aria_metadata: AriaSyncMetadata | None = None
         self.workers_that_re_registered: list[Worker] = []
         self.recovery_lock: asyncio.Lock = asyncio.Lock()
 
@@ -166,7 +166,7 @@ class CoordinatorService(object):
         message_type: int = self.protocol_networking.get_msg_type(data)
         match message_type:
             case MessageType.AriaProcessingDone:
-                if not self.aria_metadata.sent_proceed_msg:
+                if self.aria_metadata is not None and not self.aria_metadata.sent_proceed_msg:
                     self.aria_metadata.sent_proceed_msg = True
                     await self.worker_wants_to_proceed()
                 message = self.protocol_networking.decode_message(data)
