@@ -10,8 +10,9 @@ total_time=$7
 saving_dir=$8
 warmup_seconds=$9
 epoch_size=${10}
+query_engine=${11:-false}
 
-bash scripts/start_styx_cluster.sh "$n_part" "$epoch_size"
+bash scripts/start_styx_cluster.sh "$n_part" "$epoch_size" "$query_engine"
 
 sleep 10
 
