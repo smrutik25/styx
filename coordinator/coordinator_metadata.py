@@ -184,8 +184,8 @@ class Coordinator(object):
                                          len(sn_data))
             self.prev_completed_snapshot_id = current_completed_snapshot
             loop = asyncio.get_running_loop()
-            asyncio.ensure_future(self.networking.send_message(QUERY_ENGINE_HOST, QUERY_ENGINE_PORT, msg=(snapshot_id, ),
-                                                     msg_type=MessageType.SnapID))
+            loop.create_task(self.networking.send_message(QUERY_ENGINE_HOST, QUERY_ENGINE_PORT, msg=(snapshot_id, ),
+                                                          msg_type=MessageType.SnapID))
             # loop = asyncio.get_running_loop()
             # loop.run_in_executor(pool,
             #                      start_snapshot_compaction,
