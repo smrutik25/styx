@@ -16,6 +16,7 @@ setuptools.setup(
         'aiologger>=0.7.0,<1.0',
         # hashing strings
         'cityhash>=0.4.7,<1.0.0',
+        'pydantic>=2.10',
     ],
     python_requires='>=3.13',
 )

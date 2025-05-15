@@ -18,6 +18,7 @@ class MessagingMode(IntEnum):
     WORKER_COR = 0
     PROTOCOL_PROTOCOL = 1
     HEARTBEAT = 2
+    QE_COR = 3
 
 
 class BaseNetworking(ABC):

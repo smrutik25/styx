@@ -29,6 +29,7 @@ class MessageType(IntEnum):
     ChainAbort = 24
     AckCache = 25
     WrongPartitionRequest = 26
+    ClientQuery = 27
     SnapMarker = 99
     AlignStart = 100
     AlignEnd = 101

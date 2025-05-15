@@ -39,5 +39,13 @@ class FutureTimedOut(Exception):
     """
     pass
 
+
 class InvalidRangePartitioning(Exception):
+    pass
+
+
+class InvalidAnalyticalSchema(Exception):
+    """
+    When client passes invalid schema for query engine
+    """
     pass

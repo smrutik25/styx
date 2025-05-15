@@ -2,6 +2,7 @@
 
 scale_factor=$1
 epoch_size=$2
+query_engine=${3:-false}
 threads_per_worker=1
 minimum_amount_of_workers=1
 
@@ -16,4 +17,10 @@ docker compose -f docker-compose-minio.yml up -d
 sleep 10
 docker compose build --build-arg epoch_size="$epoch_size"
 docker compose up --scale worker="$threaded_scale_factor" -d
+sleep 5
+QUERY_ENGINE="$query_engine" docker compose up --scale worker="$threaded_scale_factor" -d
+if [ "$query_engine" = true ]; then
+  docker compose -f docker-compose-query-engine.yml build
+  docker compose -f docker-compose-query-engine.yml up -d
+fi
 sleep 5
