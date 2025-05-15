@@ -3,6 +3,20 @@ from styx.common.stateful_function import StatefulFunction
 
 ycsb_operator = Operator('ycsb')
 
+# ycsb_schema = [
+#     {
+#       "column_name": "id",
+#       "data_type": "BIGINT",
+#       "primary_key": True
+#     },
+#     {
+#       "column_name": "value",
+#       "data_type": "BIGINT"
+#     }
+# ]
+# ycsb_operator.set_analytical_schema(ycsb_schema)
+# print("Client submitted analytical schema.")
+
 
 class NotEnoughCredit(Exception):
     pass

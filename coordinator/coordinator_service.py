@@ -36,6 +36,9 @@ SNAPSHOT_BUCKET_NAME: str = os.getenv('SNAPSHOT_BUCKET_NAME', "styx-snapshots")
 SNAPSHOT_FREQUENCY_SEC = int(os.getenv('SNAPSHOT_FREQUENCY_SEC', 10))
 SNAPSHOT_COMPACTION_INTERVAL_SEC = int(os.getenv('SNAPSHOT_COMPACTION_INTERVAL_SEC', 10))
 HEARTBEAT_CHECK_INTERVAL: int = int(os.getenv('HEARTBEAT_CHECK_INTERVAL', 1000))  # 1000ms
+QUERY_ENGINE: bool = os.getenv('QUERY_ENGINE', "false") == "true"
+QUERY_ENGINE_HOST: str = os.environ['QUERY_ENGINE_HOST']
+QUERY_ENGINE_PORT: int = int(os.getenv('QUERY_ENGINE_PORT', 7000))
 
 
 class CoordinatorService(object):
@@ -116,6 +119,10 @@ class CoordinatorService(object):
                 await self.coordinator.submit_stateflow_graph(message[0])
                 logging.info("Submitted Stateflow Graph to Workers")
                 self.aria_metadata = AriaSyncMetadata(len(self.coordinator.worker_pool.get_participating_workers()))
+                # if QUERY_ENGINE:
+                #     await self.networking.send_message(QUERY_ENGINE_HOST, QUERY_ENGINE_PORT, msg=(message[0],),
+                #                                        msg_type=MessageType.SendExecutionGraph)
+                #     logging.info(f"Sent stateflow graph to query engine {message[0]}")
             case MessageType.RegisterWorker:  # REGISTER_WORKER
                 worker_ip, worker_port, protocol_port = self.networking.decode_message(data)
                 # A worker registered to the coordinator
@@ -143,6 +150,12 @@ class CoordinatorService(object):
                                                    partial_input_offsets, partial_output_offsets,
                                                    epoch_counter, t_counter,
                                                    pool)
+                # if QUERY_ENGINE:
+                #     await self.networking.send_message(QUERY_ENGINE_HOST, QUERY_ENGINE_PORT,
+                #                                        msg=(snapshot_id,),
+                #                                        msg_type=MessageType.SnapID)
+                #     logging.info(f"Sent snapshot id message to query engine: {(snapshot_id,)}")
+
             case MessageType.Heartbeat:
                 # HEARTBEATS
                 (worker_id, cpu_perc, mem_util, rx_net, tx_net) = self.networking.decode_message(data)

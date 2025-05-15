@@ -19,13 +19,16 @@ from styx.common.stateflow_ingress import IngressTypes
 from styx.common.logging import logging
 from styx.common.exceptions import NotAStateflowGraph
 
-from snapshot_compactor import start_snapshot_compaction
+# from snapshot_compactor import start_snapshot_compaction
 from worker_pool import WorkerPool, Worker
 
 MAX_OPERATOR_PARALLELISM = int(os.getenv('MAX_OPERATOR_PARALLELISM', 10))
 KAFKA_REPLICATION_FACTOR = int(os.getenv('KAFKA_REPLICATION_FACTOR', 3))
 SNAPSHOT_BUCKET_NAME: str = os.getenv('SNAPSHOT_BUCKET_NAME', "styx-snapshots")
 KAFKA_URL: str = os.getenv('KAFKA_URL', None)
+QUERY_ENGINE: bool = os.getenv('QUERY_ENGINE', "false") == "true"
+QUERY_ENGINE_HOST: str = os.environ['QUERY_ENGINE_HOST']
+QUERY_ENGINE_PORT: int = int(os.getenv('QUERY_ENGINE_PORT', 7000))
 
 
 class Coordinator(object):
@@ -180,10 +183,10 @@ class Coordinator(object):
                                          io.BytesIO(sn_data),
                                          len(sn_data))
             self.prev_completed_snapshot_id = current_completed_snapshot
-            loop = asyncio.get_running_loop()
-            loop.run_in_executor(pool,
-                                 start_snapshot_compaction,
-                                 current_completed_snapshot)
+            # loop = asyncio.get_running_loop()
+            # loop.run_in_executor(pool,
+            #                      start_snapshot_compaction,
+            #                      current_completed_snapshot)
 
     def get_current_completed_snapshot_id(self) -> int:
         if self.worker_snapshot_ids:
@@ -220,6 +223,11 @@ class Coordinator(object):
                                               msg_type=MessageType.ReceiveExecutionPlan)
                  for worker in self.worker_pool.get_participating_workers()]
         await asyncio.gather(*tasks)
+        if QUERY_ENGINE:
+            logging.info(f"Sending stateflow graph to query engine")
+            await self.networking.send_message(QUERY_ENGINE_HOST, QUERY_ENGINE_PORT, msg=(stateflow_graph,),
+                                               msg_type=MessageType.SendExecutionGraph)
+            logging.info(f"Sent stateflow graph to query engine {stateflow_graph}")
         self.graph_submitted = True
         self.submitted_graph = stateflow_graph
         metadata_key = msgpack_serialization(self.submitted_graph.name)
