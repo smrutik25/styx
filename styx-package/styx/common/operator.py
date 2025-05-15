@@ -26,6 +26,7 @@ class Operator(BaseOperator):
         self.__functions: dict[str, type] = {}
         self.__partitioner: HashPartitioner = HashPartitioner(n_partitions, composite_key_hash_params)
         self.__is_shadow: bool = False
+        self.__schema: list[ColumnSchema] = []
         self.__deployed_graph = None
         self.__run_func_lock: asyncio.Lock = asyncio.Lock()
         self.__schema: list[ColumnSchema] = []
