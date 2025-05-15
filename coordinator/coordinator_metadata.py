@@ -246,6 +246,10 @@ class Coordinator(object):
             except KafkaException:
                 logging.warning(f'Kafka at {KAFKA_URL} not ready yet, sleeping for 1 second')
                 time.sleep(1)
+        query_engine_topics = []
+        if QUERY_ENGINE:
+            query_engine_topics = ([NewTopic(topic='query-engine', num_partitions=1, replication_factor=KAFKA_REPLICATION_FACTOR)] +
+                                   [NewTopic(topic='query-engine--OUT', num_partitions=1, replication_factor=KAFKA_REPLICATION_FACTOR)])
         topics = (
                 [NewTopic(topic='styx-metadata', num_partitions=1, replication_factor=KAFKA_REPLICATION_FACTOR)] +
                 [NewTopic(topic='sequencer-wal', num_partitions=1, replication_factor=KAFKA_REPLICATION_FACTOR)] +
@@ -256,7 +260,9 @@ class Coordinator(object):
                 [NewTopic(topic=operator.name + "--OUT",
                           num_partitions=MAX_OPERATOR_PARALLELISM,
                           replication_factor=KAFKA_REPLICATION_FACTOR)
-                 for operator in stateflow_graph.nodes.values()])
+                 for operator in stateflow_graph.nodes.values()] +
+                query_engine_topics
+        )
 
         futures = client.create_topics(topics)
         for topic, future in futures.items():

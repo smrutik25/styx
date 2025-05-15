@@ -96,6 +96,17 @@ class BaseStyxClient(ABC):
                                                                 serializer=serializer)
         return request_id, serialized_value, partition
 
+    @staticmethod
+    def _prepare_kafka_query_message(query: str,
+                                     serializer: Serializer) -> tuple[bytes, bytes]:
+        event = (query,)
+        # needs to be uuid4 due to concurrent clients from the same machine
+        request_id = msgpack_serialization(uuid.uuid4().int >> 64)
+        serialized_value: bytes = BaseNetworking.encode_message(msg=event,
+                                                                msg_type=MessageType.ClientQuery,
+                                                                serializer=serializer)
+        return request_id, serialized_value
+
     @abstractmethod
     def close(self):
         raise NotImplementedError

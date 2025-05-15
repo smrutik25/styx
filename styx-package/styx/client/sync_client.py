@@ -152,6 +152,15 @@ class SyncStyxClient(BaseStyxClient):
             if msg.key() in self._futures:
                 self._futures[msg.key()].set_in_timestamp(msg.timestamp()[1])
 
+    def delivery_callback_query(self, err, msg):
+        if err is not None:
+            logging.warning("Delivery failed for User query {}: {}".format(msg.key(), err))
+        # TODO (Smruti): Collect metrics separately
+        # else:
+        #     self._delivery_timestamps[msg.key()] = msg.timestamp()[1]
+        #     if msg.key() in self._futures:
+        #         self._futures[msg.key()].set_in_timestamp(msg.timestamp()[1])
+
     def send_event(self,
                    operator: BaseOperator,
                    key,
@@ -171,6 +180,17 @@ class SyncStyxClient(BaseStyxClient):
                                      value=serialized_value,
                                      partition=partition,
                                      on_delivery=self.delivery_callback
+                                     )
+        self._kafka_producer.poll(0)
+        return self._futures[request_id]
+
+    def send_query(self, query: str, serializer: Serializer = Serializer.MSGPACK) -> StyxFuture:
+        request_id, serialized_query = self._prepare_kafka_query_message(query, serializer)
+        self._futures[request_id] = StyxFuture(request_id=request_id)
+        self._kafka_producer.produce("query-engine",
+                                     key=request_id,
+                                     value=serialized_query,
+                                     on_delivery=self.delivery_callback_query
                                      )
         self._kafka_producer.poll(0)
         return self._futures[request_id]

@@ -154,6 +154,17 @@ class AsyncStyxClient(BaseStyxClient):
         self._futures[request_id].set_in_timestamp(msg.timestamp)
         return self._futures[request_id]
 
+    async def send_query(self, query: str, serializer: Serializer = Serializer.MSGPACK) -> StyxAsyncFuture:
+        request_id, serialized_query = self._prepare_kafka_query_message(query, serializer)
+        self._futures[request_id] = StyxAsyncFuture(request_id=request_id)
+        msg = await self._kafka_producer.send_and_wait("query-engine",
+                                                       key=request_id,
+                                                       value=serialized_query)
+        # TODO (Smruti): Collect metrics separately
+        # self._delivery_timestamps[request_id] = msg.timestamp
+        # self._futures[request_id].set_in_timestamp(msg.timestamp)
+        return self._futures[request_id]
+
     async def send_batch_insert(self, operator: BaseOperator, partition: int, function: Type | str,
                                 key_value_pairs: dict[any, any], serializer: Serializer = Serializer.MSGPACK) -> bytes:
         request_id, serialized_value, _ = self._prepare_kafka_message(None,

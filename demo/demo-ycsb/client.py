@@ -107,6 +107,8 @@ def benchmark_runner(proc_num) -> dict[bytes, dict]:
                                      function=func_name,
                                      params=params)
             timestamp_futures[future.request_id] = {"op": f'{func_name} {key}->{params[0]}'}
+        # TODO (Smruti): Will have to pass queries periodically (HTAP Benchmarking)
+        # styx.send_query("SELECT * FROM ycsb")
         styx.flush()
         sec_end = timer()
         lps = sec_end - sec_start
