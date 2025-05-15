@@ -45,18 +45,15 @@ class QueryEngineService(object):
             case MessageType.SendExecutionGraph:
                 message = self.networking.decode_message(data)
                 logging.warning(f"Query engine received execution graph: {message[0]}")
-                # attrs = vars(message[0])
-                # logging.warning(', '.join("%s: %s" % item for item in attrs.items()))
             case MessageType.SnapID:
                 snapshot_id = self.networking.decode_message(data)[0]
-                logging.warning(f"Query engine received snapshot {snapshot_id}")
                 matching_keys = []
                 prefix = "data/"
                 pattern = re.compile(rf"^{re.escape(prefix)}.*/{snapshot_id}\.bin$")
                 for obj in self.minio_client.list_objects(SNAPSHOT_BUCKET_NAME, prefix=prefix, recursive=True):
                     if pattern.match(obj.object_name):
                         matching_keys.append(obj.object_name)
-                logging.warning(f"Matching keys: {matching_keys}")
+                logging.warning(f"Query engine received snapshot: {snapshot_id}. Matching keys: {matching_keys}")
 
     async def start_tcp_service(self):
         async def request_handler(reader: StreamReader, writer: StreamWriter):
