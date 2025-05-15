@@ -52,11 +52,11 @@ class QueryEngineService(object):
                 logging.warning(f"Query engine received snapshot {snapshot_id}")
                 matching_keys = []
                 prefix = "data/"
-                pattern = re.compile(rf"^{prefix}[^/]+/id\.bin$")
+                pattern = re.compile(rf"^{re.escape(prefix)}.*/{snapshot_id}\.bin$")
                 for obj in self.minio_client.list_objects(SNAPSHOT_BUCKET_NAME, prefix=prefix, recursive=True):
                     if pattern.match(obj.object_name):
                         matching_keys.append(obj.object_name)
-                logging.info(f"Matching keys = {matching_keys}")
+                logging.warning(f"Matching keys: {matching_keys}")
 
     async def start_tcp_service(self):
         async def request_handler(reader: StreamReader, writer: StreamWriter):
