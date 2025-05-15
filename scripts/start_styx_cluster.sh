@@ -23,3 +23,4 @@ if [ "$query_engine" = true ]; then
   docker compose -f docker-compose-query-engine.yml build
   docker compose -f docker-compose-query-engine.yml up -d
 fi
+sleep 5
