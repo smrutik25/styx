@@ -19,7 +19,7 @@ from styx.common.stateflow_ingress import IngressTypes
 from styx.common.logging import logging
 from styx.common.exceptions import NotAStateflowGraph
 
-from snapshot_compactor import start_snapshot_compaction
+# from snapshot_compactor import start_snapshot_compaction
 from worker_pool import WorkerPool, Worker
 
 MAX_OPERATOR_PARALLELISM = int(os.getenv('MAX_OPERATOR_PARALLELISM', 10))
@@ -180,10 +180,10 @@ class Coordinator(object):
                                          io.BytesIO(sn_data),
                                          len(sn_data))
             self.prev_completed_snapshot_id = current_completed_snapshot
-            loop = asyncio.get_running_loop()
-            loop.run_in_executor(pool,
-                                 start_snapshot_compaction,
-                                 current_completed_snapshot)
+            # loop = asyncio.get_running_loop()
+            # loop.run_in_executor(pool,
+            #                      start_snapshot_compaction,
+            #                      current_completed_snapshot)
 
     def get_current_completed_snapshot_id(self) -> int:
         if self.worker_snapshot_ids:
