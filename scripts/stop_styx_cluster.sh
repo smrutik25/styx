@@ -2,7 +2,7 @@
 
 docker compose logs worker > worker-logs.log
 docker compose logs coordinator > coordinator-logs.log
-if docker compose ps --services | grep -q '^query-engine$'; then
+if docker compose ps --services | grep 'query-engine'; then
   docker compose logs query-engine > query-engine-logs.log
 fi
 

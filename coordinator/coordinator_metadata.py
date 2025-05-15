@@ -26,6 +26,9 @@ MAX_OPERATOR_PARALLELISM = int(os.getenv('MAX_OPERATOR_PARALLELISM', 10))
 KAFKA_REPLICATION_FACTOR = int(os.getenv('KAFKA_REPLICATION_FACTOR', 3))
 SNAPSHOT_BUCKET_NAME: str = os.getenv('SNAPSHOT_BUCKET_NAME', "styx-snapshots")
 KAFKA_URL: str = os.getenv('KAFKA_URL', None)
+QUERY_ENGINE: bool = os.getenv('QUERY_ENGINE', "false") == "true"
+QUERY_ENGINE_HOST: str = os.environ['QUERY_ENGINE_HOST']
+QUERY_ENGINE_PORT: int = int(os.getenv('QUERY_ENGINE_PORT', 7000))
 
 
 class Coordinator(object):

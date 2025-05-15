@@ -37,6 +37,10 @@ SNAPSHOT_FREQUENCY_SEC = int(os.getenv('SNAPSHOT_FREQUENCY_SEC', 10))
 SNAPSHOT_COMPACTION_INTERVAL_SEC = int(os.getenv('SNAPSHOT_COMPACTION_INTERVAL_SEC', 10))
 HEARTBEAT_CHECK_INTERVAL: int = int(os.getenv('HEARTBEAT_CHECK_INTERVAL', 1000))  # 1000ms
 
+QUERY_ENGINE: bool = os.getenv('QUERY_ENGINE', "false") == "true"
+QUERY_ENGINE_HOST: str = os.environ['QUERY_ENGINE_HOST']
+QUERY_ENGINE_PORT: int = int(os.getenv('QUERY_ENGINE_PORT', 7000))
+
 
 class CoordinatorService(object):
 
