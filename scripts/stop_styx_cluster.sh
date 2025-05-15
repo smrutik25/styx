@@ -3,7 +3,7 @@
 docker compose logs worker > worker-logs.log
 docker compose logs coordinator > coordinator-logs.log
 if docker compose ps --services | grep 'query-engine'; then
-  docker compose logs query-engine > query-engine-logs.log
+  docker compose -f docker-compose-query-engine.yml logs query-engine > query-engine-logs.log
 fi
 
 # DELETE PREVIOUS DEPLOYMENT

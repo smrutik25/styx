@@ -28,6 +28,7 @@ class MessageType(IntEnum):
     RemoteWantsToProceed = 23
     ChainAbort = 24
     AckCache = 25
+    ClientQuery = 27
     WrongPartitionRequest = 26
     SnapMarker = 99
     AlignStart = 100

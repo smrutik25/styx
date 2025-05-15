@@ -7,6 +7,7 @@ from .stateful_function import StatefulFunction
 from .exceptions import OperatorDoesNotContainFunction
 from .logging import logging
 from .partitioning.hash_partitioner import HashPartitioner
+from .query_engine_schema import ColumnSchema, QueryEngineSchema
 
 
 class Operator(BaseOperator):
@@ -22,6 +23,7 @@ class Operator(BaseOperator):
         self.__functions: dict[str, type] = {}
         self.__partitioner: HashPartitioner = HashPartitioner(n_partitions)
         self.__is_shadow: bool = False
+        self.__schema: list[ColumnSchema] = []
 
     def which_partition(self, key):
         return self.__partitioner.get_partition(key)
@@ -40,6 +42,10 @@ class Operator(BaseOperator):
     @property
     def functions(self):
         return self.__functions
+
+    @property
+    def schema(self):
+        return self.__schema
 
     async def run_function(self,
                            key,
@@ -158,3 +164,6 @@ class Operator(BaseOperator):
     def set_n_partitions(self, n_partitions: int):
         self.n_partitions = n_partitions
         self.__partitioner.update_partitions(n_partitions)
+
+    def set_analytical_schema(self, schema):
+        self.__schema = QueryEngineSchema(schema).column_schemas
