@@ -183,6 +183,9 @@ class Coordinator(object):
                                          io.BytesIO(sn_data),
                                          len(sn_data))
             self.prev_completed_snapshot_id = current_completed_snapshot
+            loop = asyncio.get_running_loop()
+            asyncio.ensure_future(self.networking.send_message(QUERY_ENGINE_HOST, QUERY_ENGINE_PORT, msg=(snapshot_id, ),
+                                                     msg_type=MessageType.SnapID))
             # loop = asyncio.get_running_loop()
             # loop.run_in_executor(pool,
             #                      start_snapshot_compaction,
@@ -223,6 +226,8 @@ class Coordinator(object):
                                               msg_type=MessageType.ReceiveExecutionPlan)
                  for worker in self.worker_pool.get_participating_workers()]
         await asyncio.gather(*tasks)
+        await self.networking.send_message(QUERY_ENGINE_HOST, QUERY_ENGINE_PORT, msg=(stateflow_graph,),
+                                           msg_type=MessageType.SendExecutionGraph)
         self.graph_submitted = True
         self.submitted_graph = stateflow_graph
         metadata_key = msgpack_serialization(self.submitted_graph.name)

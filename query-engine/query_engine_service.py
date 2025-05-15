@@ -44,12 +44,12 @@ class QueryEngineService(object):
         match message_type:
             case MessageType.SendExecutionGraph:
                 message = self.networking.decode_message(data)
-                logging.info(f"Query engine received execution graph: {message[0]}")
-                attrs = vars(message[0])
-                logging.info(', '.join("%s: %s" % item for item in attrs.items()))
+                logging.warning(f"Query engine received execution graph: {message[0]}")
+                # attrs = vars(message[0])
+                # logging.warning(', '.join("%s: %s" % item for item in attrs.items()))
             case MessageType.SnapID:
                 snapshot_id = self.networking.decode_message(data)[0]
-                logging.info(f"Query engine received snapshot {snapshot_id}")
+                logging.warning(f"Query engine received snapshot {snapshot_id}")
                 matching_keys = []
                 prefix = "data/"
                 pattern = re.compile(rf"^{prefix}[^/]+/id\.bin$")
