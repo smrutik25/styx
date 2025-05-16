@@ -187,7 +187,7 @@ class SyncStyxClient(BaseStyxClient):
     def send_query(self, query: str, serializer: Serializer = Serializer.MSGPACK) -> StyxFuture:
         request_id, serialized_query = self._prepare_kafka_query_message(query, serializer)
         self._futures[request_id] = StyxFuture(request_id=request_id)
-        self._kafka_producer.produce("query-engine",
+        self._kafka_producer.produce("styx-query-engine",
                                      key=request_id,
                                      value=serialized_query,
                                      on_delivery=self.delivery_callback_query
