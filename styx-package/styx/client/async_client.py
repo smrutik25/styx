@@ -157,7 +157,7 @@ class AsyncStyxClient(BaseStyxClient):
     async def send_query(self, query: str, serializer: Serializer = Serializer.MSGPACK) -> StyxAsyncFuture:
         request_id, serialized_query = self._prepare_kafka_query_message(query, serializer)
         self._futures[request_id] = StyxAsyncFuture(request_id=request_id)
-        msg = await self._kafka_producer.send_and_wait("query-engine",
+        msg = await self._kafka_producer.send_and_wait("styx-query-engine",
                                                        key=request_id,
                                                        value=serialized_query)
         # TODO (Smruti): Collect metrics separately

@@ -248,8 +248,8 @@ class Coordinator(object):
                 time.sleep(1)
         query_engine_topics = []
         if QUERY_ENGINE:
-            query_engine_topics = ([NewTopic(topic='query-engine', num_partitions=1, replication_factor=KAFKA_REPLICATION_FACTOR)] +
-                                   [NewTopic(topic='query-engine--OUT', num_partitions=1, replication_factor=KAFKA_REPLICATION_FACTOR)])
+            query_engine_topics = ([NewTopic(topic='styx-query-engine', num_partitions=1, replication_factor=KAFKA_REPLICATION_FACTOR)] +
+                                   [NewTopic(topic='styx-query-engine--OUT', num_partitions=1, replication_factor=KAFKA_REPLICATION_FACTOR)])
         topics = (
                 [NewTopic(topic='styx-metadata', num_partitions=1, replication_factor=KAFKA_REPLICATION_FACTOR)] +
                 [NewTopic(topic='sequencer-wal', num_partitions=1, replication_factor=KAFKA_REPLICATION_FACTOR)] +
