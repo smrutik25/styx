@@ -38,7 +38,6 @@ SNAPSHOT_COMPACTION_INTERVAL_SEC = int(os.getenv('SNAPSHOT_COMPACTION_INTERVAL_S
 HEARTBEAT_CHECK_INTERVAL: int = int(os.getenv('HEARTBEAT_CHECK_INTERVAL', 1000))  # 1000ms
 
 QUERY_ENGINE: bool = os.getenv('QUERY_ENGINE', "false") == "true"
-QUERY_ENGINE_HOST: str = os.environ['QUERY_ENGINE_HOST']
 QUERY_ENGINE_PORT: int = int(os.getenv('QUERY_ENGINE_PORT', 7000))
 
 
@@ -47,11 +46,13 @@ class CoordinatorService(object):
     def __init__(self):
         self.networking = NetworkingManager(SERVER_PORT)
         self.protocol_networking = NetworkingManager(PROTOCOL_PORT, size=4, mode=MessagingMode.PROTOCOL_PROTOCOL)
+        self.query_engine_networking = NetworkingManager(QUERY_ENGINE_PORT, mode=MessagingMode.QE_COR) \
+            if QUERY_ENGINE else None
         self.minio_client: Minio = Minio(
             MINIO_URL, access_key=MINIO_ACCESS_KEY,
             secret_key=MINIO_SECRET_KEY, secure=False
         )
-        self.coordinator = Coordinator(self.networking,self.minio_client)
+        self.coordinator = Coordinator(self.networking, self.query_engine_networking, self.minio_client)
         self.aio_task_scheduler = AIOTaskScheduler()
 
         self.puller_task: asyncio.Task = ...
@@ -284,6 +285,8 @@ class CoordinatorService(object):
     def start_networking_tasks(self):
         self.networking.start_networking_tasks()
         self.protocol_networking.start_networking_tasks()
+        if self.query_engine_networking:
+            self.query_engine_networking.start_networking_tasks()
 
     async def finalize_worker_sync(self,
                                    msg_type: MessageType,

@@ -26,15 +26,15 @@ MAX_OPERATOR_PARALLELISM = int(os.getenv('MAX_OPERATOR_PARALLELISM', 10))
 KAFKA_REPLICATION_FACTOR = int(os.getenv('KAFKA_REPLICATION_FACTOR', 3))
 SNAPSHOT_BUCKET_NAME: str = os.getenv('SNAPSHOT_BUCKET_NAME', "styx-snapshots")
 KAFKA_URL: str = os.getenv('KAFKA_URL', None)
-QUERY_ENGINE: bool = os.getenv('QUERY_ENGINE', "false") == "true"
 QUERY_ENGINE_HOST: str = os.environ['QUERY_ENGINE_HOST']
 QUERY_ENGINE_PORT: int = int(os.getenv('QUERY_ENGINE_PORT', 7000))
 
 
 class Coordinator(object):
 
-    def __init__(self, networking: NetworkingManager, minio_client: Minio):
+    def __init__(self, networking: NetworkingManager, query_engine_networking: NetworkingManager | None, minio_client: Minio):
         self.networking = networking
+        self.query_engine_networking = query_engine_networking
         self.minio_client = minio_client
         self.graph_submitted: bool = False
         self.prev_completed_snapshot_id: int = -1
@@ -183,9 +183,11 @@ class Coordinator(object):
                                          io.BytesIO(sn_data),
                                          len(sn_data))
             self.prev_completed_snapshot_id = current_completed_snapshot
-            loop = asyncio.get_running_loop()
-            loop.create_task(self.networking.send_message(QUERY_ENGINE_HOST, QUERY_ENGINE_PORT, msg=(snapshot_id, ),
-                                                          msg_type=MessageType.SnapID))
+            if self.query_engine_networking:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self.query_engine_networking.send_message(QUERY_ENGINE_HOST, QUERY_ENGINE_PORT,
+                                                                           msg=(snapshot_id, ),
+                                                                           msg_type=MessageType.SnapID))
             # loop = asyncio.get_running_loop()
             # loop.run_in_executor(pool,
             #                      start_snapshot_compaction,
@@ -226,8 +228,9 @@ class Coordinator(object):
                                               msg_type=MessageType.ReceiveExecutionPlan)
                  for worker in self.worker_pool.get_participating_workers()]
         await asyncio.gather(*tasks)
-        await self.networking.send_message(QUERY_ENGINE_HOST, QUERY_ENGINE_PORT, msg=(stateflow_graph,),
-                                           msg_type=MessageType.SendExecutionGraph)
+        if self.query_engine_networking:
+            await self.query_engine_networking.send_message(QUERY_ENGINE_HOST, QUERY_ENGINE_PORT, msg=(stateflow_graph,),
+                                                            msg_type=MessageType.SendExecutionGraph)
         self.graph_submitted = True
         self.submitted_graph = stateflow_graph
         metadata_key = msgpack_serialization(self.submitted_graph.name)
@@ -247,7 +250,7 @@ class Coordinator(object):
                 logging.warning(f'Kafka at {KAFKA_URL} not ready yet, sleeping for 1 second')
                 time.sleep(1)
         query_engine_topics = []
-        if QUERY_ENGINE:
+        if self.query_engine_networking:
             query_engine_topics = ([NewTopic(topic='styx-query-engine', num_partitions=1, replication_factor=KAFKA_REPLICATION_FACTOR)] +
                                    [NewTopic(topic='styx-query-engine--OUT', num_partitions=1, replication_factor=KAFKA_REPLICATION_FACTOR)])
         topics = (
