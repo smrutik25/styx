@@ -50,6 +50,15 @@ async def consume(save_dir):
                 for msg in messages:
                     # print("consumed: ", msg.key, msg.value, msg.timestamp)
                     records.append((msg.key, msg.value, msg.timestamp))
+        consumer.subscribe(topics=['styx-query-engine--OUT'])
+        while True:
+            data = await consumer.getmany(timeout_ms=1_000)
+            if not data:
+                break
+            for messages in data.values():
+                for msg in messages:
+                    print(f"Query response: {msg.key}, {msg.value}")
+
     finally:
         # Will leave consumer group; perform autocommit if enabled.
         await consumer.stop()
