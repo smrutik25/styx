@@ -57,7 +57,7 @@ async def consume(save_dir):
                 break
             for messages in data.values():
                 for msg in messages:
-                    print(f"Query response: {msg.key}, {msg.value}")
+                    print(f"Query response: {msg.value}")
 
     finally:
         # Will leave consumer group; perform autocommit if enabled.
