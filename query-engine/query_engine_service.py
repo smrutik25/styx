@@ -16,6 +16,7 @@ from styx.common.message_types import MessageType
 from styx.common.serialization import msgpack_serialization
 from styx.common.tcp_networking import NetworkingManager, MessagingMode
 from styx.common.util.aio_task_scheduler import AIOTaskScheduler
+from duckdb_operations.create_tables import QueryEngineTables
 
 
 KAFKA_URL: str = os.getenv('KAFKA_URL', "localhost:9092")
@@ -53,6 +54,8 @@ class QueryEngineService(object):
         self.qe_socket.bind(('0.0.0.0', QUERY_ENGINE_PORT))
         self.qe_socket.setblocking(False)
 
+        if os.path.exists(DATABASE_FILE_PATH):
+            os.remove(DATABASE_FILE_PATH)
         self.duckdb_conn = duckdb.connect(database=DATABASE_FILE_PATH)
 
     async def query_engine_controller(self, data: bytes):
@@ -60,11 +63,8 @@ class QueryEngineService(object):
         match message_type:
             case MessageType.SendExecutionGraph:
                 message = self.networking.decode_message(data)
-                logging.warning(f"Query engine received execution graph: {message[0]}")
-                graph = message[0]
-                for node in graph.nodes:
-                    logging.warning(f"Schema of operator {node.name}: {node.schema()}")
-
+                logging.warning(f"Query engine received execution graph")
+                await QueryEngineTables(self.duckdb_conn).create_tables_from_stateflow_graph(message[0])
             case MessageType.SnapID:
                 snapshot_id = self.networking.decode_message(data)[0]
                 matching_keys = []

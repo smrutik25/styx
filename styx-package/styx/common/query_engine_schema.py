@@ -31,7 +31,6 @@ ColumnAdapter = TypeAdapter(ColumnSchema)
 class QueryEngineSchema:
     def __init__(self, schema: list[dict]):
         self._column_schemas: List[ColumnSchema] = []
-
         for column in schema:
             processed_data = self._preprocess_data(column)
             self._parse_columns(processed_data)

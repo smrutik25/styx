@@ -21,7 +21,6 @@ WORKDIR /usr/local/styx
 
 COPY --chown=styx:styx query-engine query-engine
 COPY --chown=styx:styx query-engine/start-query-engine.sh /usr/local/bin/
-CMD ["rm -rf query-engine/data/*.db"]
 
 RUN chmod a+x /usr/local/bin/start-query-engine.sh
 
