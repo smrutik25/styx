@@ -1,0 +1,33 @@
+import logging
+import os
+import re
+from collections import defaultdict
+import pandas as pd
+
+from styx.common.serialization import msgpack_deserialization
+
+SNAPSHOT_BUCKET_NAME: str = os.getenv('SNAPSHOT_BUCKET_NAME', "styx-snapshots")
+
+
+class MinioReader:
+    def __init__(self, minio_client, snapshot_id):
+        self.minio_client = minio_client
+        self.snapshot_id: str = snapshot_id
+        self.operator_snapshots: dict = defaultdict(list)
+
+    async def identify_minio_delta(self):
+        prefix = "data/"
+        pattern = re.compile(rf"^{re.escape(prefix)}.*/{self.snapshot_id}\.bin$")
+        for obj in self.minio_client.list_objects(SNAPSHOT_BUCKET_NAME, prefix=prefix, recursive=True):
+            if pattern.match(obj.object_name):
+                operator_name = obj.object_name.split("/")[1]
+                self.operator_snapshots[operator_name].append(obj.object_name)
+        logging.warning(f"Operator snapshots for snapshot_id {self.snapshot_id}: {dict(self.operator_snapshots)}")
+
+    async def deserialize_snapshots(self, operator):
+        deserialized_objects = {}
+        for object_path in self.operator_snapshots[operator]:
+            obj = self.minio_client.get_object(SNAPSHOT_BUCKET_NAME, object_path)
+            data = obj.read()
+            deserialized_objects.update(msgpack_deserialization(data))
+        return deserialized_objects

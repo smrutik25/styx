@@ -1,11 +1,17 @@
 import logging
+
+import duckdb
 from styx.common.query_engine_schema import ColumnSchema, NestedTableSchema
-from styx.common.stateflow_graph import StateflowGraph
 
 
 class QueryEngineTables:
-    def __init__(self, db_con):
+    def __init__(self, db_con: duckdb.DuckDBPyConnection):
         self.db_con = db_con
+        self.__tables = {}
+
+    @property
+    def tables(self):
+        return self.__tables
 
     @staticmethod
     async def _create_column_definition(column: ColumnSchema) -> (list[str], list[str]):
@@ -24,24 +30,31 @@ class QueryEngineTables:
         create_table_sql = f"""CREATE TABLE IF NOT EXISTS '{table_name}' ({', '.join(column_definitions)}{pk_constraint});"""
         self.db_con.execute(create_table_sql)
 
-    async def _create_nested_table(self, column: NestedTableSchema):
+    async def _create_nested_table(self, source_table_name: str, column: NestedTableSchema):
+        column_names = []
         column_definitions = []
         primary_keys = []
         for nested_column in column.nested_column_mapping:
             if column.primary_key:
                 primary_keys.append(nested_column.column_name)
             column_definitions.append(await self._create_column_definition(nested_column))
+            column_names.append(nested_column.column_name)
+        self.__tables[source_table_name].setdefault("nested_tables", {})[column.unnest_table_name] = column_names
         await self._create_table_in_duckdb(column.unnest_table_name, column_definitions, primary_keys)
 
-    async def _create_table(self, table_name: str, columns: ColumnSchema):
+    async def create_table(self, table_name: str, columns: ColumnSchema):
+        column_names = []
         column_definitions = []
         primary_keys = []
+        self.__tables[table_name] = {}
         for column in columns:
+            column_names.append(column.column_name)
             if column.primary_key:
                 primary_keys.append(column.column_name)
             column_definitions.append(await self._create_column_definition(column))
             if isinstance(column, NestedTableSchema):
-                await self._create_nested_table(column)
+                await self._create_nested_table(table_name, column)
+        self.__tables[table_name]["columns"] = column_names
         await self._create_table_in_duckdb(table_name, column_definitions, primary_keys)
 
     async def describe_table(self, table_name):
@@ -50,8 +63,4 @@ class QueryEngineTables:
     async def fetch_created_tables(self):
         return self.db_con.sql("SHOW TABLES").fetchnumpy()['name'].tolist()
 
-    async def create_tables_from_stateflow_graph(self, graph: StateflowGraph):
-        for operator_name, operator in iter(graph):
-            await self._create_table(operator_name, operator.schema)
-        created_tables = await self.fetch_created_tables()
-        logging.warning(f"Created tables: {", ".join(created_tables)}")
+
