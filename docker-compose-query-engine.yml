@@ -4,10 +4,8 @@ services:
       context: .
       dockerfile: query-engine/query-engine.dockerfile
     image: dev/styx-query-engine:latest
-#    ports:
-#      - "8891:8892"
-#    volumes:
-#      -
+    volumes:
+      - ./query-engine/data:/usr/local/styx/data
     environment:
       - INGRESS_TYPE=KAFKA
       - KAFKA_URL=kafka1:19092

@@ -3,16 +3,17 @@ import os
 import re
 import socket
 import struct
+import duckdb
 from asyncio import StreamReader, StreamWriter
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
-from aiokafka.errors import KafkaConnectionError, KafkaError
+from aiokafka.errors import KafkaConnectionError
 
 import uvloop
 from minio import Minio
 
 from styx.common.logging import logging
 from styx.common.message_types import MessageType
-from styx.common.serialization import msgpack_deserialization, msgpack_serialization
+from styx.common.serialization import msgpack_serialization
 from styx.common.tcp_networking import NetworkingManager, MessagingMode
 from styx.common.util.aio_task_scheduler import AIOTaskScheduler
 
@@ -24,6 +25,7 @@ MINIO_SECRET_KEY: str = os.environ['MINIO_ROOT_PASSWORD']
 QUERY_ENGINE_PORT: int = int(os.getenv('QUERY_ENGINE_PORT', 7000))
 QUERY_ENGINE_TOPIC: str = "styx-query-engine"
 SNAPSHOT_BUCKET_NAME: str = os.getenv('SNAPSHOT_BUCKET_NAME', "styx-snapshots")
+DATABASE_FILE_PATH: str = os.getenv('DATABASE_FILE_PATH', 'query-engine/data/duckdb_database.db')
 
 
 class QueryEngineService(object):
@@ -51,12 +53,18 @@ class QueryEngineService(object):
         self.qe_socket.bind(('0.0.0.0', QUERY_ENGINE_PORT))
         self.qe_socket.setblocking(False)
 
+        self.duckdb_conn = duckdb.connect(database=DATABASE_FILE_PATH)
+
     async def query_engine_controller(self, data: bytes):
         message_type: int = self.networking.get_msg_type(data)
         match message_type:
             case MessageType.SendExecutionGraph:
                 message = self.networking.decode_message(data)
                 logging.warning(f"Query engine received execution graph: {message[0]}")
+                graph = message[0]
+                for node in graph.nodes:
+                    logging.warning(f"Schema of operator {node.name}: {node.schema()}")
+
             case MessageType.SnapID:
                 snapshot_id = self.networking.decode_message(data)[0]
                 matching_keys = []
