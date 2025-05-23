@@ -2,7 +2,6 @@ import logging
 import os
 import re
 from collections import defaultdict
-import pandas as pd
 
 from styx.common.serialization import msgpack_deserialization
 
@@ -31,3 +30,4 @@ class MinioReader:
             data = obj.read()
             deserialized_objects.update(msgpack_deserialization(data))
         return deserialized_objects
+

@@ -10,7 +10,7 @@ import uvloop
 
 from styx.common.logging import logging
 from styx.common.message_types import MessageType
-from styx.common.serialization import msgpack_serialization
+from styx.common.serialization import msgpack_serialization, msgpack_deserialization
 from styx.common.tcp_networking import NetworkingManager, MessagingMode
 from styx.common.util.aio_task_scheduler import AIOTaskScheduler
 
@@ -57,7 +57,6 @@ class QueryEngineService(object):
                 await self.qe_handler.load_snapshots(snapshot_id)
 
     async def start_tcp_service(self):
-
         async def request_handler(reader: StreamReader, writer: StreamWriter):
             try:
                 while True:
@@ -109,8 +108,7 @@ class QueryEngineService(object):
                 await asyncio.sleep(5)
         self.kafka_query_consumer = AIOKafkaConsumer(auto_offset_reset='earliest',
                                                      bootstrap_servers=[KAFKA_URL],
-                                                     client_id="QueryEngineConsumer"
-                                                     )
+                                                     client_id="QueryEngineConsumer")
         while True:
             try:
                 await self.kafka_query_consumer.start()
@@ -132,10 +130,12 @@ class QueryEngineService(object):
 
     async def handle_client_query(self, kafka_message):
         try:
-            logging.info(f"Received query {kafka_message.value} from client")
+            msg = msgpack_deserialization(kafka_message.value[2:])
+            logging.info(f"Received query {msg} from client")
+            res = await self.qe_handler.get_query_result(msg[0])
             await self.kafka_query_result_producer.send_and_wait(f"{QUERY_ENGINE_TOPIC}--OUT",
                                                                  key=kafka_message.key,
-                                                                 value="Res rows")
+                                                                 value=res)
         except Exception as e:
             logging.warning(f"Error decoding query: {e}")
 

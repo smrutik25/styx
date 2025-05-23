@@ -117,7 +117,7 @@ def benchmark_runner(proc_num) -> dict[bytes, dict]:
     end = timer()
     print(f'Average latency per second: {(end - start) / seconds}')
     for i in range(5):
-        client_query = f"SELECT * FROM ycsb where id = {i}"
+        client_query = f"SELECT count(*) FROM ycsb where id > {i * 5000}"
         styx.send_query(client_query)
         print(f"Sent query {client_query} to Styx")
 

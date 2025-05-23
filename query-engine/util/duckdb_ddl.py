@@ -8,10 +8,20 @@ class QueryEngineTables:
     def __init__(self, db_con: duckdb.DuckDBPyConnection):
         self.db_con = db_con
         self.__tables = {}
+        self.__table_indexes: dict = {}
+        self.__operators = []
 
     @property
     def tables(self):
         return self.__tables
+
+    @property
+    def table_indexes(self):
+        return self.__table_indexes
+
+    @property
+    def operators(self):
+        return self.__operators
 
     @staticmethod
     async def _create_column_definition(column: ColumnSchema) -> (list[str], list[str]):
@@ -23,9 +33,10 @@ class QueryEngineTables:
         return col_def
 
     async def _create_table_in_duckdb(self, table_name: str, column_definitions: list[str],
-                               primary_keys: list[str] = None) -> None:
+                                      primary_keys: list[str] = None) -> None:
         pk_constraint = ""
         if primary_keys:
+            self.__table_indexes[table_name] = primary_keys
             pk_constraint = f", PRIMARY KEY ({', '.join(primary_keys)})"
         create_table_sql = f"""CREATE TABLE IF NOT EXISTS '{table_name}' ({', '.join(column_definitions)}{pk_constraint});"""
         self.db_con.execute(create_table_sql)
@@ -47,6 +58,7 @@ class QueryEngineTables:
         column_definitions = []
         primary_keys = []
         self.__tables[table_name] = {}
+        self.__operators.append(table_name)
         for column in columns:
             column_names.append(column.column_name)
             if column.primary_key:
