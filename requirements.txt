@@ -19,6 +19,8 @@ geopy
 sanic==25.3.0
 # aiohttp==3.11.18
 locust==2.37.2
+# schema validation
+pydantic>=2.10
 # Plots and demo
 pandas==2.2.3
 tqdm==4.67.1

@@ -3,7 +3,7 @@ import os
 import re
 from collections import defaultdict
 
-from styx.common.serialization import msgpack_deserialization
+from styx.common.serialization import zstd_msgpack_deserialization
 
 SNAPSHOT_BUCKET_NAME: str = os.getenv('SNAPSHOT_BUCKET_NAME', "styx-snapshots")
 
@@ -25,9 +25,11 @@ class MinioReader:
 
     async def deserialize_snapshots(self, operator):
         deserialized_objects = {}
+        n = 100
         for object_path in self.operator_snapshots[operator]:
-            obj = self.minio_client.get_object(SNAPSHOT_BUCKET_NAME, object_path)
-            data = obj.read()
-            deserialized_objects.update(msgpack_deserialization(data))
+            partition_data = zstd_msgpack_deserialization(
+                self.minio_client.get_object(SNAPSHOT_BUCKET_NAME, object_path).data
+            )
+            deserialized_objects.update(partition_data)
         return deserialized_objects
 

@@ -12,3 +12,5 @@ aiokafka==0.12.0
 minio==7.2.15
 # deathstar
 geopy
+# schema validation
+pydantic>=2.10

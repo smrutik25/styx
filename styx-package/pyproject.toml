@@ -21,7 +21,9 @@ dependencies = [
     # Hashing
     "cityhash>=0.4.8,<1.0.0",
     # Compression
-    "zstandard>=0.23.0,<1.0.0"
+    "zstandard>=0.23.0,<1.0.0",
+    # schema validation
+    "pydantic>=2.10"
 ]
 
 [tool.setuptools.packages.find]
