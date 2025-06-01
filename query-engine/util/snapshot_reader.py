@@ -25,7 +25,6 @@ class MinioReader:
 
     async def deserialize_snapshots(self, operator):
         deserialized_objects = {}
-        n = 100
         for object_path in self.operator_snapshots[operator]:
             partition_data = zstd_msgpack_deserialization(
                 self.minio_client.get_object(SNAPSHOT_BUCKET_NAME, object_path).data

@@ -41,6 +41,10 @@ KAFKA_URL = 'localhost:9092'
 SAVE_DIR: str = sys.argv[7]
 warmup_seconds: int = int(sys.argv[8])
 run_with_validation = bool(sys.argv[9])
+if len(sys.argv) > 10:
+    run_with_qe = bool(sys.argv[10])
+else:
+    run_with_qe = False
 ####################################################################################################################
 g = StateflowGraph('ycsb-benchmark', operator_state_backend=LocalStateBackend.DICT)
 ycsb_operator.set_n_partitions(N_PARTITIONS)
@@ -95,10 +99,15 @@ def benchmark_runner(proc_num) -> dict[bytes, dict]:
     timestamp_futures: dict[bytes, dict] = {}
     time.sleep(5)
     start = timer()
+    query_count = 0
     for _ in range(seconds):
         sec_start = timer()
         for i in range(messages_per_second):
             if i % (messages_per_second // sleeps_per_second) == 0:
+                if run_with_qe and i % 500 == 0:
+                    client_query = f"SELECT sum(value) FROM ycsb where id > {i}"
+                    styx.send_query(client_query)
+                    query_count += 1
                 time.sleep(sleep_time)
             operator, key, func_name, params = next(ycsb_generator)
             future = styx.send_event(operator=operator,
@@ -106,8 +115,6 @@ def benchmark_runner(proc_num) -> dict[bytes, dict]:
                                      function=func_name,
                                      params=params)
             timestamp_futures[future.request_id] = {"op": f'{func_name} {key}->{params[0]}'}
-        # TODO (Smruti): Will have to pass queries periodically (HTAP Benchmarking)
-        # styx.send_query("SELECT * FROM ycsb")
         styx.flush()
         sec_end = timer()
         lps = sec_end - sec_start
@@ -117,10 +124,8 @@ def benchmark_runner(proc_num) -> dict[bytes, dict]:
         print(f'Latency per second: {sec_end2 - sec_start}')
     end = timer()
     print(f'Average latency per second: {(end - start) / seconds}')
-    for i in range(5):
-        client_query = f"SELECT count(*) FROM ycsb where id > {i * 5000}"
-        styx.send_query(client_query)
-        print(f"Sent query {client_query} to Styx")
+    if run_with_qe:
+        print(f"Sent {query_count} queries to query engine")
 
     styx.close()
 

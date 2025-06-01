@@ -29,7 +29,7 @@ class QueryEngineHandler:
     async def stateflow_graph_to_tables(self, stateflow_graph: StateflowGraph) -> None:
         try:
             for operator_name, operator in iter(stateflow_graph):
-                await self.qe_ddl.create_table(operator_name, operator.schema)
+                self.qe_ddl.create_table(operator_name, operator.schema)
             created_tables = await self.qe_ddl.fetch_created_tables()
             logging.warning(f"Created tables: {", ".join(created_tables)}")
         except Exception as e:
@@ -37,11 +37,12 @@ class QueryEngineHandler:
 
     async def deserialized_data_to_df(self, snapshot_data: dict[str, dict]) -> dict[str, pd.DataFrame]:
         indexes = self.qe_ddl.table_indexes
+        tables = self.qe_ddl.tables
         df_data = {}
-        if "nested_tables" in self.qe_ddl.tables:
+        if "nested_tables" in tables:
             # TODO: Handle nested logic - add nested dfs to df_data
             pass
-        for table_name in self.qe_ddl.tables.keys():
+        for table_name in tables.keys():
             data = snapshot_data[table_name]
             first_value = next(iter(data.values()))
             if isinstance(first_value, dict):
@@ -61,7 +62,8 @@ class QueryEngineHandler:
         for operator in self.qe_ddl.operators:
             snapshot_data[operator] = await minio_client.deserialize_snapshots(operator)
         df_data = await self.deserialized_data_to_df(snapshot_data)
-        self.qe_readwrite.write_to_table(df_data)
+        tables = self.qe_ddl.tables
+        self.qe_readwrite.write_to_table(df_data, tables)
 
     async def get_query_result(self, query: str):
         # TODO: User can define format of read output
