@@ -1,0 +1,64 @@
+services:
+  primary:
+    build: ./primary
+    container_name: pg_primary
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: mydb
+    shm_size: 1g
+    command: >
+      postgres
+      -c hba_file=/etc/postgresql/pg_hba.conf
+      -c listen_addresses='*'
+      -c max_wal_size=2GB
+      -c checkpoint_timeout=30min
+      -c wal_keep_size=512MB
+      -c shared_buffers=512MB
+      -c work_mem=64MB
+      -c maintenance_work_mem=256MB
+      -c wal_buffers=16MB
+      -c wal_level=replica
+      -c max_wal_senders=10
+      -c hot_standby=on
+    ports:
+      - "5432:5432"
+    volumes:
+      - primary_data:/var/lib/postgresql/data
+      - ./primary/pg_hba.conf:/etc/postgresql/pg_hba.conf
+    networks:
+      - pgnet
+
+  replica:
+    build: ./replica
+    container_name: pg_replica
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: mydb
+      PGPASSWORD: replica_pass
+      PGDATA: /var/lib/postgresql/replica_data
+    depends_on:
+      - primary
+    shm_size: 1g
+    command: >
+      postgres
+      -c listen_addresses='*'
+      -c hot_standby=on
+      -c shared_buffers=512MB
+      -c work_mem=64MB
+      -c maintenance_work_mem=256MB
+      -c wal_buffers=16MB
+    ports:
+      - "5433:5432"
+    volumes:
+      - replica_data:/var/lib/postgresql/replica_data
+    networks:
+      - pgnet
+
+volumes:
+  primary_data:
+  replica_data:
+
+networks:
+  pgnet:

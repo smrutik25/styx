@@ -1,0 +1,25 @@
+services:
+  postgres:
+    image: postgres:14.5
+    container_name: hattrick_pg
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: mydb
+    command: >
+      postgres
+      -c max_wal_size=2GB
+      -c checkpoint_timeout=30min
+      -c wal_keep_size=512MB
+      -c shared_buffers=512MB
+      -c work_mem=64MB
+      -c maintenance_work_mem=256MB
+      -c wal_buffers=16MB
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+      - ./datagen:/data/datagen
+#    networks:
+#      - pg-net
+    shm_size: 1g
+    ports:
+      - "5432:5432"
