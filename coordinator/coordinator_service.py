@@ -395,6 +395,26 @@ class CoordinatorService(object):
                                                                      msg_type=MessageType.MigrationDone,
                                                                      serializer=Serializer.NONE))
 
+    async def finalize_migration_repartition(self):
+        async with asyncio.TaskGroup() as tg:
+            for worker in self.coordinator.worker_pool.get_participating_workers():
+                tg.create_task(self.protocol_networking.send_message(worker.worker_ip, worker.worker_port,
+                                                                     msg=(self.migration_metadata.epoch_counter,
+                                                                          self.migration_metadata.t_counter,
+                                                                          self.migration_metadata.input_offsets,
+                                                                          self.migration_metadata.output_offsets),
+                                                                     msg_type=MessageType.MigrationRepartitioningDone,
+                                                                     serializer=Serializer.MSGPACK))
+
+    async def finalize_migration(self):
+        async with asyncio.TaskGroup() as tg:
+            for worker in self.coordinator.worker_pool.get_participating_workers():
+                logging.warning(f"Sending MigrationDone to : {worker}")
+                tg.create_task(self.protocol_networking.send_message(worker.worker_ip, worker.worker_port,
+                                                                     msg=b'',
+                                                                     msg_type=MessageType.MigrationDone,
+                                                                     serializer=Serializer.NONE))
+
     async def finalize_worker_sync(self,
                                    msg_type: MessageType,
                                    message: tuple | bytes,
