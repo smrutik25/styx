@@ -4,16 +4,13 @@ scale_factor="$1"
 
 make all
 echo "Current directory: $(pwd)"
-mkdir datagen
-./HATtrickBench -gen -pa ./datagen -sf "$scale_factor"
-ls ./datagen
 
 if [ "$scale_factor" = "1" ]; then
-  warmup=120
-  runtime=240
+  warmup=10
+  runtime=60
 elif [ "$scale_factor" = "10" ]; then
-  warmup=180
-  runtime=360
+  warmup=20
+  runtime=60
 else
   echo "Invalid scale factor"
   exit 1
