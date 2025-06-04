@@ -26,7 +26,8 @@ echo "Starting Postgres..."
 exec docker-entrypoint.sh postgres \
   -c listen_addresses='*' \
   -c hot_standby=on \
-  -c shared_buffers=512MB \
-  -c work_mem=64MB \
-  -c maintenance_work_mem=256MB \
-  -c wal_buffers=16MB
+  -c shared_buffers=${SHARED_BUFFERS} \
+  -c work_mem=${WORK_MEM} \
+  -c maintenance_work_mem=${MAINTENANCE_WORK_MEM} \
+  -c wal_buffers="${WAL_BUFFERS}" \
+  -c max_standby_streaming_delay="${MAX_STANDBY_STREAMING_DELAY}"

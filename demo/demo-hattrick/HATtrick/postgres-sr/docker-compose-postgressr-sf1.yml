@@ -41,20 +41,16 @@ services:
       POSTGRES_DB: mydb
       PGPASSWORD: replica_pass
       PGDATA: /var/lib/postgresql/replica_data
+      SHARED_BUFFERS: 512MB
+      WORK_MEM: 64MB
+      MAINTENANCE_WORK_MEM: 256MB
+      WAL_BUFFERS: 16MB
+      MAX_STANDBY_STREAMING_DELAY: 600s
     depends_on:
       - primary
     cpus: 2
     mem_limit: 4g
     shm_size: 1g
-    command: >
-      postgres
-      -c listen_addresses='*'
-      -c hot_standby=on
-      -c shared_buffers=512MB
-      -c work_mem=64MB
-      -c maintenance_work_mem=256MB
-      -c wal_buffers=16MB
-      -c max_standby_streaming_delay=5min
     ports:
       - "5433:5432"
     volumes:
