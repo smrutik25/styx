@@ -79,6 +79,8 @@ int main(int argc, char* argv[]){
         int ac = frontier->getMaxAC();
         cout << "FINDING MAX TC";
         int tc = frontier->getMaxTC();
+        // max vals found, now frontier calculation is done
+        frontier->setState();
         frontier->setMaxTC(tc);
         frontier->setMaxAC(ac);
         cout << "FINDING FRONTIER";

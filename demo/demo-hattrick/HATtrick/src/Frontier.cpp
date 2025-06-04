@@ -70,7 +70,7 @@ double Frontier::runBenchmark(int& peak, int& choice){
     auto* workload = new Workload();
     workload->ExecuteWorkloads(g);
     auto* r = new Results();
-    workload->ReturnResults(r);
+    workload->ReturnResults(r, getState());
     if(choice==1)
         peak_throughput = r->getTransactionalThroughput();
     else if(choice==2)
@@ -175,7 +175,7 @@ void Frontier::findFrontier(){
             auto* workload = new Workload();
             workload->ExecuteWorkloads(g);
             auto* r = new Results();
-            workload->ReturnResults(r);
+            workload->ReturnResults(r, getState());
             auto endTime = chrono::system_clock::to_time_t(chrono::system_clock::now());
             cout << "\n[DONE] Choice: [3] Run Benchmark" << endl;
             cout << "START TIME of [3] " << ctime(&startTime) << endl;
@@ -206,4 +206,12 @@ int Frontier::getMaxTC(){
 
 int Frontier::getMaxAC(){
     return max_ac;
+}
+
+bool Frontier::getState(){
+    return max_found;
+}
+
+void Frontier::setState(){
+    max_found = true;
 }

@@ -33,7 +33,7 @@ void Results::setAnalyticalThroughput(double& at){
     a_throughput = at;
 }
 
-void Results::saveResults() {
+void Results::saveResults(bool frontier_calc) {
     fs::create_directory("results");	
     double tt = 0, at = 0, ft = 0;
     if(totalQueries != 0){
@@ -78,12 +78,14 @@ void Results::saveResults() {
     resultsStream << "Real test duration: " << testDuration << endl;
     resultsStream.close();
     resultsStream.clear();
-    resultsStream.open("results/frontier-SF"+to_string(UserInput::getSF())+".csv", ofstream::out | ofstream::app | ofstream::binary);
-    resultsStream << tt << "," << at <<  endl;
-    resultsStream.close();
-    resultsStream.open("results/txn-failures-SF"+to_string(UserInput::getSF())+".csv", ofstream::out | ofstream::app | ofstream::binary);
-    resultsStream << ft <<  endl;
-    resultsStream.close();
+    if (frontier_calc) {
+        resultsStream.open("results/frontier-SF"+to_string(UserInput::getSF())+".csv", ofstream::out | ofstream::app | ofstream::binary);
+        resultsStream << tt << "," << at <<  endl;
+        resultsStream.close();
+        resultsStream.open("results/txn-failures-SF"+to_string(UserInput::getSF())+".csv", ofstream::out | ofstream::app | ofstream::binary);
+        resultsStream << ft <<  endl;
+        resultsStream.close();
+    }
     if(UserInput::getAnalClients()>0){
     	resultsStream.clear();
     	resultsStream.open("results/freshness-SF"+to_string(UserInput::getSF())+"-"+
@@ -155,7 +157,7 @@ void Results::getTestDuration(vector<AnalyticalClient*>& a){
     }
 }
 
-void Results::computeResults(vector<TransactionalClient*>& t, vector<AnalyticalClient*>& a){
+void Results::computeResults(vector<TransactionalClient*>& t, vector<AnalyticalClient*>& a, bool frontier_calc){
     setTotalQueries(a);
     setTotalTxns(t);
     getTxnLatency(t);
@@ -164,5 +166,5 @@ void Results::computeResults(vector<TransactionalClient*>& t, vector<AnalyticalC
     	getFreshness(a);
     }
     getTestDuration(a);
-    saveResults();
+    saveResults(frontier_calc);
 }

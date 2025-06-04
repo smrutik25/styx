@@ -24,6 +24,7 @@ private:
     int num_of_ratios = 0;
     vector<double> t_throughputs;
     vector<double> a_throughputs;
+    bool max_found = false;
 public:
     void deleteTuples();
     void createFreshnessTable(int& tc);
@@ -34,6 +35,8 @@ public:
     int getMaxTC();
     int getMaxAC();
     void findFrontier();
+    bool getState();
+    void setState();
     /*void addTransactionalThroughput(double tt);
     void addAnalyticalThroughput(double at);
     vector<double>& getTransactionalThroughputs();

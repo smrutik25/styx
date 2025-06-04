@@ -36,8 +36,8 @@ public:
     double getAnalyticalThroughput();
     void setTransactionalThroughput(double& tt);
     void setAnalyticalThroughput(double& at);
-    void saveResults();
-    void computeResults(vector<TransactionalClient*>& t, vector<AnalyticalClient*>& a);
+    void saveResults(bool frontier_calc);
+    void computeResults(vector<TransactionalClient*>& t, vector<AnalyticalClient*>& a, bool frontier_calc);
     void getTxnNum(vector<TransactionalClient*>& t);
 
 };

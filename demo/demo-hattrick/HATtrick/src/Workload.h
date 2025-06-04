@@ -39,7 +39,7 @@ public:
     static void AnalyticalWorkload(AnalyticalClient* aClient, Globals* g);
     static void TransactionalWorkload(TransactionalClient* tClient, Globals* g, int t);
     void ExecuteWorkloads(Globals* g);
-    void ReturnResults(Results* r);
+    void ReturnResults(Results* r, bool frontier_calc);
 };
 
 #endif //HATTRICKBENCH_WORKLOAD_H

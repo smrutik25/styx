@@ -331,7 +331,8 @@ void Workload::ExecuteWorkloads(Globals* g) {
         tThreads[i].join();
 }
 
-void Workload::ReturnResults(Results *r) {
-    r->computeResults(tClients, aClients);
+void Workload::ReturnResults(Results *r, bool frontier_calc) {
+
+    r->computeResults(tClients, aClients, frontier_calc);
 }
 
