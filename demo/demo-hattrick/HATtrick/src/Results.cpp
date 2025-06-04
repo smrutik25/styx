@@ -13,6 +13,7 @@ void Results::setTotalQueries(vector<AnalyticalClient*>& a){
 void Results::setTotalTxns(vector<TransactionalClient*>& t){
     for(int i=0; i<UserInput::getTranClients(); i++) {
         totalTxns += t[i]->GetLocalCounter();
+        totalFailedTxns += t[i]->GetFailCounter();
     }
 }
 
@@ -34,13 +35,16 @@ void Results::setAnalyticalThroughput(double& at){
 
 void Results::saveResults() {
     fs::create_directory("results");	
-    double tt = 0, at = 0;
+    double tt = 0, at = 0, ft = 0;
     if(totalQueries != 0){
             at = (double)totalQueries/testDuration;
     }	    
     setAnalyticalThroughput(at);
     if(totalTxns != 0){
             tt = (double)totalTxns/UserInput::getTestDuration();
+    }
+    if ((totalFailedTxns + totalTxns) != 0){
+        ft = (double)totalFailedTxns/(totalFailedTxns + totalTxns) * 100;
     }
     setTransactionalThroughput(tt);
     resultsStream.open("results/results-SF"+to_string(UserInput::getSF())+".txt", ofstream::out | ofstream::app | ofstream::binary);
@@ -49,6 +53,8 @@ void Results::saveResults() {
     resultsStream << "Anal. Threads #: " << UserInput::getAnalClients() << endl;
     resultsStream << "Tran. Threads #: " << UserInput::getTranClients() << endl;
     resultsStream << "Total # of transactions executed: " << totalTxns << endl;
+    resultsStream << "Total # of transactions failed: " << totalFailedTxns << endl;
+    resultsStream << "Percentage # of transactions failed: " << ft << endl;
     resultsStream << "Total # of queries executed: " << totalQueries << endl;
     resultsStream << "Anal. Throughput [queries/sec]: " << getAnalyticalThroughput()  << endl;
     resultsStream << "Tran. Throughput [transactions/sec]: " << getTransactionalThroughput() << endl;
@@ -74,6 +80,9 @@ void Results::saveResults() {
     resultsStream.clear();
     resultsStream.open("results/frontier-SF"+to_string(UserInput::getSF())+".csv", ofstream::out | ofstream::app | ofstream::binary);
     resultsStream << tt << "," << at <<  endl;
+    resultsStream.close();
+    resultsStream.open("results/txn-failures-SF"+to_string(UserInput::getSF())+".csv", ofstream::out | ofstream::app | ofstream::binary);
+    resultsStream << ft <<  endl;
     resultsStream.close();
     if(UserInput::getAnalClients()>0){
     	resultsStream.clear();

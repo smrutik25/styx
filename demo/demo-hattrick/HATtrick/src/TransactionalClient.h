@@ -23,15 +23,17 @@ private:
     int clientNum = 0;              
     vector<vector<double>> latencyVector = vector<vector<double>>(3);    // history of response time for the 3 transactions
     int txn_num[3] = {0};           // number of txns executed from each category
-    int localCounter = 0;           // local counter of the transactions that the current client is running 
+    int localCounter = 0;           // local counter of the transactions that the current client is running
+    const int numTries = 3;
+    int failCounter = 0;
 public:
     TransactionalClient();
-    void PrepareTransactionStmt(SQLHDBC& dbc);
+//    void PrepareTransactionStmt(SQLHDBC& dbc);
     int NewOrderTransactionPS(SQLHDBC& dbc);   // NewOrder txn w/ store procedures for PostgreSQL
-    int  NewOrderTransactionSS(SQLHDBC& dbc);   // NewOrder txn w/ stored procedures for SQL Server
+//    int  NewOrderTransactionSS(SQLHDBC& dbc);   // NewOrder txn w/ stored procedures for SQL Server
     void NewOrderTransaction(SQLHDBC& dbc);     // NewOrder txn w/ prepared statements, same for all DBs
     int PaymentTransactionSP(SQLHDBC& dbc);    // Payment txn w/ stored procedures, same for PostgreSQL and SQL Server
-    void PaymentTransaction(SQLHDBC& dbc);      // Payment txn w/ prepared statements, same for all DBs
+//    void PaymentTransaction(SQLHDBC& dbc);      // Payment txn w/ prepared statements, same for all DBs
     int CountOrdersTransactionSP(SQLHDBC& dbc); // CountOrders txn w/ stored procedures, same for PostgreSQL and SQL Server
     void CountOrdersTransaction(SQLHDBC& dbc);   // CountOrders txn w/ prepared statements, same for all DBs
     SQLHSTMT& GetTransactionStmt();
@@ -47,8 +49,9 @@ public:
     double GetLatencySum(int tType);
     int GetLatencySize(int tType);
     void IncrementLocalCounter();
-    void DecrementLocalCounter();
     int& GetLocalCounter();
+    void IncrementFailCounter();
+    int& GetFailCounter();
     void PrepareFreshnessStmt(SQLHDBC &dbc);
     SQLHSTMT& GetFreshnessStmt();
 };

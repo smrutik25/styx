@@ -3,11 +3,11 @@
 
 TransactionalClient::TransactionalClient(){}
 
-void TransactionalClient::PrepareTransactionStmt(SQLHDBC &dbc){
-    for(unsigned int i=0; i<SQLDialect::transactionalCommands.size(); i++){
-        Driver::prepareStmt(dbc, GetTransactionPrepStmt(i), SQLDialect::transactionalCommands[i].c_str());
-    }
-}
+//void TransactionalClient::PrepareTransactionStmt(SQLHDBC &dbc){
+//    for(unsigned int i=0; i<SQLDialect::transactionalCommands.size(); i++){
+//        Driver::prepareStmt(dbc, GetTransactionPrepStmt(i), SQLDialect::transactionalCommands[i].c_str());
+//    }
+//}
 
 void TransactionalClient::PrepareFreshnessStmt(SQLHDBC &dbc){
    Driver::prepareStmt(dbc, GetFreshnessStmt(), (SQLDialect::freshnessCommands[0]+
@@ -17,6 +17,7 @@ void TransactionalClient::PrepareFreshnessStmt(SQLHDBC &dbc){
 
 int TransactionalClient::NewOrderTransactionPS(SQLHDBC& dbc){
     // Create a random LO_CUSTNAME.
+    int tries = 0;
     int custkey = DataSrc::uniformIntDist(1, UserInput::getCustSize());
     ostringstream ckey;
     ckey << setw(9) << setfill('0') << custkey;
@@ -109,112 +110,114 @@ int TransactionalClient::NewOrderTransactionPS(SQLHDBC& dbc){
     Driver::bindIntParam(GetTransactionStmt(), txn_num, 17);
     while(ret != 0){
     	ret = Driver::executeStmtDiar(GetTransactionStmt(), SQLDialect::transactionalQueries[UserInput::getdbChoice()][0].c_str());
+    	tries++ ;
+    	if(tries >= numTries) break;
     }
     Driver::freeStmtHandle(GetTransactionStmt());
     if (ret == 0) return 1;
     else return 0;
 }
 
-int TransactionalClient::NewOrderTransactionSS(SQLHDBC& dbc){
-    int ret = -1;
-    // Get random ciustomer key CUSTKEY.
-    int custkey = DataSrc::uniformIntDist(1, UserInput::getCustSize());
-    ostringstream ckey;
-    ckey << setw(9) << setfill('0') << custkey;
-    string custName = "Customer#" + ckey.str();
-    char* c_name = &custName[0];    // get random customer name
-    int partkey1 = DataSrc::uniformIntDist(1, UserInput::getPartSize());
-    int partkey2 = DataSrc::uniformIntDist(1, UserInput::getPartSize());
-    int partkey3 = DataSrc::uniformIntDist(1, UserInput::getPartSize());
-    int partkey4 = DataSrc::uniformIntDist(1, UserInput::getPartSize());
-    int suppkey = DataSrc::uniformIntDist(1, UserInput::getSuppSize());
-    int suppkey2 = DataSrc::uniformIntDist(1, UserInput::getSuppSize());
-    int suppkey3 = DataSrc::uniformIntDist(1, UserInput::getSuppSize());
-    int suppkey4 = DataSrc::uniformIntDist(1, UserInput::getSuppSize());
-    ostringstream skey1;
-    skey1 << setw(9) << setfill('0') << suppkey;
-    string suppName1 = "Supplier#" + skey1.str();
-    char* s_name = &suppName1[0];    // get random supplier name
-    ostringstream skey2;
-    skey2 << setw(9) << setfill('0') << suppkey2;
-    string suppName2 = "Supplier#" + skey2.str();
-    char* s_name2 = &suppName2[0];    // get random supplier name
-    ostringstream skey3;
-    skey3 << setw(9) << setfill('0') << suppkey3;
-    string suppName3 = "Supplier#" + skey3.str();
-    char* s_name3 = &suppName3[0];    // get random supplier name        
-    ostringstream skey4;
-    skey4 << setw(9) << setfill('0') << suppkey4;
-    string suppName4 = "Supplier#" + skey4.str();
-    char* s_name4 = &suppName4[0];    // get random supplier name
-
-    //For a random DATE.
-    int choice1 = DataSrc::uniformIntDist(1, 12);
-    string s = DataSrc::getMonthName(choice1-1) + " " + to_string(DataSrc::getMonthDay(choice1-1))  + ", " \
-    + DataSrc::getYear(DataSrc::uniformIntDist(1, 7)-1);
-    char* d_date = &s[0];
-
-    int choice2 = DataSrc::uniformIntDist(1, 12);
-    string s2 = DataSrc::getMonthName(choice2-1) + " " + to_string(DataSrc::getMonthDay(choice2-1))  + ", " \
-    + DataSrc::getYear(DataSrc::uniformIntDist(1, 7)-1);
-    char* d_date2 = &s2[0];
-
-    int choice3 = DataSrc::uniformIntDist(1, 12);
-    string s3 = DataSrc::getMonthName(choice3-1) + " " + to_string(DataSrc::getMonthDay(choice3-1))  + ", " \
-    + DataSrc::getYear(DataSrc::uniformIntDist(1, 7)-1);
-    char* d_date3 = &s3[0];
-
-    int choice4 = DataSrc::uniformIntDist(1, 12);
-    string s4 = DataSrc::getMonthName(choice4-1) + " " + to_string(DataSrc::getMonthDay(choice4-1))  + ", " \
-    + DataSrc::getYear(DataSrc::uniformIntDist(1, 7)-1);
-    char* d_date4 = &s4[0];
-
-    // Create the other data of the current lineorder randomly.
-    string ordpriority = DataSrc::getOrdPriority(DataSrc::uniformIntDist(0,4));
-    char* ord =  &ordpriority[0];
-    int shippriority = DataSrc::uniformIntDist(0,1);
-    char* shipp = &to_string(shippriority)[0];
-    int quantity = DataSrc::uniformIntDist(1, 50);
-    double extendedprice = quantity;  // TODO:  multiply with p_price in the store procedure;
-    int discount =  DataSrc::uniformIntDist(0, 10);
-    double revenue = (extendedprice*(100-discount))/100;
-    double supplycost = DataSrc::uniformRealDist(1.00, 1000.00);
-    int tax =  DataSrc::uniformIntDist(0,8);
-    //int commitdate = 0; // TODO: give the commit-date based on the data generation process.
-    string shipmode = DataSrc::getShipMode(DataSrc::uniformIntDist(0,6));
-    char* shipm = &shipmode[0];
-    // Execute the insertion to the lineorder table
-    SQLAllocHandle(SQL_HANDLE_STMT, dbc, &GetTransactionStmt());
-    Driver::bindIntParam(GetTransactionStmt(), GetLoOrderKey(), 1);
-    Driver::bindCharParam(GetTransactionStmt(), c_name, 25, 2);
-    Driver::bindIntParam(GetTransactionStmt(), partkey1, 3);
-    Driver::bindIntParam(GetTransactionStmt(), partkey2, 4);
-    Driver::bindIntParam(GetTransactionStmt(), partkey3, 5);
-    Driver::bindIntParam(GetTransactionStmt(), partkey4, 6);
-    Driver::bindCharParam(GetTransactionStmt(), s_name, 25, 7);
-    Driver::bindCharParam(GetTransactionStmt(), s_name2, 25, 8);
-    Driver::bindCharParam(GetTransactionStmt(), s_name3, 25, 9);
-    Driver::bindCharParam(GetTransactionStmt(), s_name4, 25, 10);
-    Driver::bindCharParam(GetTransactionStmt(), d_date, 18, 11);
-    Driver::bindCharParam(GetTransactionStmt(), d_date2, 18, 12);
-    Driver::bindCharParam(GetTransactionStmt(), d_date3, 18, 13);
-    Driver::bindCharParam(GetTransactionStmt(), d_date4, 18, 14);
-    Driver::bindCharParam(GetTransactionStmt(), ord, 15, 15);
-    Driver::bindCharParam(GetTransactionStmt(), shipp, 1, 16);
-    Driver::bindIntParam(GetTransactionStmt(), quantity, 17);
-    Driver::bindDecParam(GetTransactionStmt(), extendedprice, 18);
-    Driver::bindIntParam(GetTransactionStmt(), discount, 19);
-    Driver::bindDecParam(GetTransactionStmt(), revenue, 20);
-    Driver::bindDecParam(GetTransactionStmt(), supplycost, 21);
-    Driver::bindIntParam(GetTransactionStmt(), tax, 22);
-    Driver::bindCharParam(GetTransactionStmt(), shipm, 10, 23);
-    while(ret != 0){
-    	ret = Driver::executeStmtDiar(GetTransactionStmt(), SQLDialect::transactionalQueries[UserInput::getdbChoice()][0].c_str());
-    }
-    Driver::freeStmtHandle(GetTransactionStmt());
-    if (ret == 0) return 1;
-    else return 0;
-}
+//int TransactionalClient::NewOrderTransactionSS(SQLHDBC& dbc){
+//    int ret = -1;
+//    // Get random ciustomer key CUSTKEY.
+//    int custkey = DataSrc::uniformIntDist(1, UserInput::getCustSize());
+//    ostringstream ckey;
+//    ckey << setw(9) << setfill('0') << custkey;
+//    string custName = "Customer#" + ckey.str();
+//    char* c_name = &custName[0];    // get random customer name
+//    int partkey1 = DataSrc::uniformIntDist(1, UserInput::getPartSize());
+//    int partkey2 = DataSrc::uniformIntDist(1, UserInput::getPartSize());
+//    int partkey3 = DataSrc::uniformIntDist(1, UserInput::getPartSize());
+//    int partkey4 = DataSrc::uniformIntDist(1, UserInput::getPartSize());
+//    int suppkey = DataSrc::uniformIntDist(1, UserInput::getSuppSize());
+//    int suppkey2 = DataSrc::uniformIntDist(1, UserInput::getSuppSize());
+//    int suppkey3 = DataSrc::uniformIntDist(1, UserInput::getSuppSize());
+//    int suppkey4 = DataSrc::uniformIntDist(1, UserInput::getSuppSize());
+//    ostringstream skey1;
+//    skey1 << setw(9) << setfill('0') << suppkey;
+//    string suppName1 = "Supplier#" + skey1.str();
+//    char* s_name = &suppName1[0];    // get random supplier name
+//    ostringstream skey2;
+//    skey2 << setw(9) << setfill('0') << suppkey2;
+//    string suppName2 = "Supplier#" + skey2.str();
+//    char* s_name2 = &suppName2[0];    // get random supplier name
+//    ostringstream skey3;
+//    skey3 << setw(9) << setfill('0') << suppkey3;
+//    string suppName3 = "Supplier#" + skey3.str();
+//    char* s_name3 = &suppName3[0];    // get random supplier name
+//    ostringstream skey4;
+//    skey4 << setw(9) << setfill('0') << suppkey4;
+//    string suppName4 = "Supplier#" + skey4.str();
+//    char* s_name4 = &suppName4[0];    // get random supplier name
+//
+//    //For a random DATE.
+//    int choice1 = DataSrc::uniformIntDist(1, 12);
+//    string s = DataSrc::getMonthName(choice1-1) + " " + to_string(DataSrc::getMonthDay(choice1-1))  + ", " \
+//    + DataSrc::getYear(DataSrc::uniformIntDist(1, 7)-1);
+//    char* d_date = &s[0];
+//
+//    int choice2 = DataSrc::uniformIntDist(1, 12);
+//    string s2 = DataSrc::getMonthName(choice2-1) + " " + to_string(DataSrc::getMonthDay(choice2-1))  + ", " \
+//    + DataSrc::getYear(DataSrc::uniformIntDist(1, 7)-1);
+//    char* d_date2 = &s2[0];
+//
+//    int choice3 = DataSrc::uniformIntDist(1, 12);
+//    string s3 = DataSrc::getMonthName(choice3-1) + " " + to_string(DataSrc::getMonthDay(choice3-1))  + ", " \
+//    + DataSrc::getYear(DataSrc::uniformIntDist(1, 7)-1);
+//    char* d_date3 = &s3[0];
+//
+//    int choice4 = DataSrc::uniformIntDist(1, 12);
+//    string s4 = DataSrc::getMonthName(choice4-1) + " " + to_string(DataSrc::getMonthDay(choice4-1))  + ", " \
+//    + DataSrc::getYear(DataSrc::uniformIntDist(1, 7)-1);
+//    char* d_date4 = &s4[0];
+//
+//    // Create the other data of the current lineorder randomly.
+//    string ordpriority = DataSrc::getOrdPriority(DataSrc::uniformIntDist(0,4));
+//    char* ord =  &ordpriority[0];
+//    int shippriority = DataSrc::uniformIntDist(0,1);
+//    char* shipp = &to_string(shippriority)[0];
+//    int quantity = DataSrc::uniformIntDist(1, 50);
+//    double extendedprice = quantity;
+//    int discount =  DataSrc::uniformIntDist(0, 10);
+//    double revenue = (extendedprice*(100-discount))/100;
+//    double supplycost = DataSrc::uniformRealDist(1.00, 1000.00);
+//    int tax =  DataSrc::uniformIntDist(0,8);
+//    //int commitdate = 0;
+//    string shipmode = DataSrc::getShipMode(DataSrc::uniformIntDist(0,6));
+//    char* shipm = &shipmode[0];
+//    // Execute the insertion to the lineorder table
+//    SQLAllocHandle(SQL_HANDLE_STMT, dbc, &GetTransactionStmt());
+//    Driver::bindIntParam(GetTransactionStmt(), GetLoOrderKey(), 1);
+//    Driver::bindCharParam(GetTransactionStmt(), c_name, 25, 2);
+//    Driver::bindIntParam(GetTransactionStmt(), partkey1, 3);
+//    Driver::bindIntParam(GetTransactionStmt(), partkey2, 4);
+//    Driver::bindIntParam(GetTransactionStmt(), partkey3, 5);
+//    Driver::bindIntParam(GetTransactionStmt(), partkey4, 6);
+//    Driver::bindCharParam(GetTransactionStmt(), s_name, 25, 7);
+//    Driver::bindCharParam(GetTransactionStmt(), s_name2, 25, 8);
+//    Driver::bindCharParam(GetTransactionStmt(), s_name3, 25, 9);
+//    Driver::bindCharParam(GetTransactionStmt(), s_name4, 25, 10);
+//    Driver::bindCharParam(GetTransactionStmt(), d_date, 18, 11);
+//    Driver::bindCharParam(GetTransactionStmt(), d_date2, 18, 12);
+//    Driver::bindCharParam(GetTransactionStmt(), d_date3, 18, 13);
+//    Driver::bindCharParam(GetTransactionStmt(), d_date4, 18, 14);
+//    Driver::bindCharParam(GetTransactionStmt(), ord, 15, 15);
+//    Driver::bindCharParam(GetTransactionStmt(), shipp, 1, 16);
+//    Driver::bindIntParam(GetTransactionStmt(), quantity, 17);
+//    Driver::bindDecParam(GetTransactionStmt(), extendedprice, 18);
+//    Driver::bindIntParam(GetTransactionStmt(), discount, 19);
+//    Driver::bindDecParam(GetTransactionStmt(), revenue, 20);
+//    Driver::bindDecParam(GetTransactionStmt(), supplycost, 21);
+//    Driver::bindIntParam(GetTransactionStmt(), tax, 22);
+//    Driver::bindCharParam(GetTransactionStmt(), shipm, 10, 23);
+//    while(ret != 0){
+//    	ret = Driver::executeStmtDiar(GetTransactionStmt(), SQLDialect::transactionalQueries[UserInput::getdbChoice()][0].c_str());
+//    }
+//    Driver::freeStmtHandle(GetTransactionStmt());
+//    if (ret == 0) return 1;
+//    else return 0;
+//}
 
 void TransactionalClient::NewOrderTransaction(SQLHDBC& dbc){
     // Get random customer key CUSTKEY.
@@ -319,7 +322,8 @@ void TransactionalClient::NewOrderTransaction(SQLHDBC& dbc){
 }
 
 int TransactionalClient::PaymentTransactionSP(SQLHDBC& dbc){
-    // Get random customer key CUSTKEY 
+    int tries = 0;
+    // Get random customer key CUSTKEY
     int custkey  = DataSrc::uniformIntDist(1, UserInput::getCustSize());
     // Get random supplier key SUPPKEY
     int suppkey = DataSrc::uniformIntDist(1, UserInput::getSuppSize());
@@ -339,50 +343,53 @@ int TransactionalClient::PaymentTransactionSP(SQLHDBC& dbc){
     [[maybe_unused]] int ret = -1;
     while(ret != 0){
     	ret = Driver::executeStmtDiar(GetTransactionStmt(), SQLDialect::transactionalQueries[UserInput::getdbChoice()][1].c_str());
-    }	
+    	tries++ ;
+    	if(tries >= numTries) break;
+    }
     Driver::freeStmtHandle(GetTransactionStmt());
     if (ret == 0) return 1;
     else return 0;
 }
 
-void TransactionalClient::PaymentTransaction(SQLHDBC& dbc){
-    // Get random customer key CUSTKEY
-    int custkey =  DataSrc::uniformIntDist(1, UserInput::getCustSize());
-    // Get random supplier key SUPPKEY
-    int suppkey = DataSrc::uniformIntDist(1, UserInput::getSuppSize());
-    // Get random paymnet amount X
-    double payAmount = DataSrc::uniformRealDist(1.00, 104950.00);
-    int client_num = GetClientNum();
-    int txn_num = GetLocalCounter();
-    // Transaction starts.
-    // Set auto commit off, all the commands will commit at the end of the transaction command.
-    Driver::autoCommitOff(dbc);
-    //Driver::executeStmt(GetTransactionPrepStmt(11));
-    // Update in customer's table.
-    Driver::bindIntParam(GetTransactionPrepStmt(6), custkey, 1);
-    Driver::executeStmt(GetTransactionPrepStmt(6));
-    Driver::resetStmt(GetTransactionPrepStmt(6));
-    // Update in supplier's table.
-    Driver::bindDecParam(GetTransactionPrepStmt(7), payAmount, 1);
-    Driver::bindIntParam(GetTransactionPrepStmt(7), suppkey, 2);
-    Driver::executeStmt(GetTransactionPrepStmt(7));
-    Driver::resetStmt(GetTransactionPrepStmt(7));
-    // Insertion in History table.
-    Driver::bindIntParam(GetTransactionPrepStmt(8), GetLoOrderKey(), 1);
-    Driver::bindIntParam(GetTransactionPrepStmt(8), custkey, 2);
-    Driver::bindDecParam(GetTransactionPrepStmt(8), payAmount, 3);
-    Driver::executeStmt(GetTransactionPrepStmt(8));
-    Driver::resetStmt(GetTransactionPrepStmt(8));
-    // Update Freshness table.
-    Driver::bindIntParam(GetFreshnessStmt(), txn_num, 1);
-    Driver::bindIntParam(GetFreshnessStmt(), client_num, 2);
-    Driver::executeStmt(GetFreshnessStmt());
-    Driver::resetStmt(GetFreshnessStmt());
-    // End of transaction.
-    Driver::endOfTransaction(dbc);
-}
+//void TransactionalClient::PaymentTransaction(SQLHDBC& dbc){
+//    // Get random customer key CUSTKEY
+//    int custkey =  DataSrc::uniformIntDist(1, UserInput::getCustSize());
+//    // Get random supplier key SUPPKEY
+//    int suppkey = DataSrc::uniformIntDist(1, UserInput::getSuppSize());
+//    // Get random paymnet amount X
+//    double payAmount = DataSrc::uniformRealDist(1.00, 104950.00);
+//    int client_num = GetClientNum();
+//    int txn_num = GetLocalCounter();
+//    // Transaction starts.
+//    // Set auto commit off, all the commands will commit at the end of the transaction command.
+//    Driver::autoCommitOff(dbc);
+//    //Driver::executeStmt(GetTransactionPrepStmt(11));
+//    // Update in customer's table.
+//    Driver::bindIntParam(GetTransactionPrepStmt(6), custkey, 1);
+//    Driver::executeStmt(GetTransactionPrepStmt(6));
+//    Driver::resetStmt(GetTransactionPrepStmt(6));
+//    // Update in supplier's table.
+//    Driver::bindDecParam(GetTransactionPrepStmt(7), payAmount, 1);
+//    Driver::bindIntParam(GetTransactionPrepStmt(7), suppkey, 2);
+//    Driver::executeStmt(GetTransactionPrepStmt(7));
+//    Driver::resetStmt(GetTransactionPrepStmt(7));
+//    // Insertion in History table.
+//    Driver::bindIntParam(GetTransactionPrepStmt(8), GetLoOrderKey(), 1);
+//    Driver::bindIntParam(GetTransactionPrepStmt(8), custkey, 2);
+//    Driver::bindDecParam(GetTransactionPrepStmt(8), payAmount, 3);
+//    Driver::executeStmt(GetTransactionPrepStmt(8));
+//    Driver::resetStmt(GetTransactionPrepStmt(8));
+//    // Update Freshness table.
+//    Driver::bindIntParam(GetFreshnessStmt(), txn_num, 1);
+//    Driver::bindIntParam(GetFreshnessStmt(), client_num, 2);
+//    Driver::executeStmt(GetFreshnessStmt());
+//    Driver::resetStmt(GetFreshnessStmt());
+//    // End of transaction.
+//    Driver::endOfTransaction(dbc);
+//}
 
-int TransactionalClient::CountOrdersTransactionSP(SQLHDBC& dbc){    
+int TransactionalClient::CountOrdersTransactionSP(SQLHDBC& dbc){
+    int tries = 0;
     int custkey =  DataSrc::uniformIntDist(1, UserInput::getCustSize());
     ostringstream ckey;
     [[maybe_unused]] int ret = -1;
@@ -399,6 +406,8 @@ int TransactionalClient::CountOrdersTransactionSP(SQLHDBC& dbc){
     Driver::bindIntParam(GetTransactionStmt(), txn_num, 3);
     while(ret != 0){
     	ret = Driver::executeStmtDiar(GetTransactionStmt(), SQLDialect::transactionalQueries[UserInput::getdbChoice()][2].c_str());
+    	tries++ ;
+    	if(tries >= numTries) break;
     }	
     Driver::freeStmtHandle(GetTransactionStmt());
     if (ret == 0) return 1;
@@ -494,12 +503,16 @@ void TransactionalClient::IncrementLocalCounter(){
     localCounter++;
 }
 
-void TransactionalClient::DecrementLocalCounter(){
-    localCounter--;
-}
-
 int& TransactionalClient::GetLocalCounter(){
     return localCounter;
+}
+
+void TransactionalClient::IncrementFailCounter(){
+    failCounter++;
+}
+
+int& TransactionalClient::GetFailCounter(){
+    return failCounter;
 }
 
 SQLHSTMT& TransactionalClient::GetFreshnessStmt(){

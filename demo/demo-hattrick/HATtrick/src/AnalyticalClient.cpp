@@ -52,40 +52,41 @@ void AnalyticalClient::PrepareAnalyticalStmt(SQLHDBC& dbc){
         Driver::prepareStmt(dbc, qStmt[q], SQLDialect::analyticalQueries[q].c_str());
     }
     }
-    else {
-	string subQuery, query;    
-	vector<string> queryParts = {"SELECT /*+ read_from_storage(tiflash[HAT.LINEORDER, HAT.PART, HAT.CUSTOMER, HAT.DATE, HAT.SUPPLIER",
-                                         ", HAT.FRESHNESS",
-                                         "]) */ DISTINCT F_TXNNUM, F_CLIENTNUM FROM (",
-                                         ") AS TMP1 CROSS JOIN (",
-                                         "SELECT * FROM HAT.FRESHNESS",
-					 " UNION ALL ",
-					 ") AS TMP2 ORDER BY F_CLIENTNUM"};
-        for(unsigned int i=1; i<=(unsigned int)UserInput::getTranClients(); i++){
-                if (UserInput::getTranClients() == 1){
-			queryParts[0] += queryParts[1]+std::to_string(i)+queryParts[2];
-                        subQuery += queryParts[4]+std::to_string(i);
-                }
-                else if(i!=(unsigned int)UserInput::getTranClients()){
-			queryParts[0] += queryParts[1]+std::to_string(i); 
-			subQuery += queryParts[4]+std::to_string(i)+queryParts[5];
-                }
-                else {
-                        queryParts[0] += queryParts[1]+std::to_string(i)+queryParts[2];
-			subQuery += queryParts[4]+std::to_string(i);
-                }
-        }
-    	for(unsigned int q=0; q<13; q++){
-    		if(UserInput::getTranClients()>0){
-            		query = queryParts[0]+SQLDialect::analyticalQueries[q]+queryParts[3]+subQuery+queryParts[6];
-	    		Driver::prepareStmt(dbc, qStmt[q+13], query.c_str());
-		}
-        	Driver::prepareStmt(dbc, qStmt[q], SQLDialect::analyticalQueries[q].c_str());
-    	}
-       }
+//    else {
+//	string subQuery, query;
+//	vector<string> queryParts = {"SELECT /*+ read_from_storage(tiflash[HAT.LINEORDER, HAT.PART, HAT.CUSTOMER, HAT.DATE, HAT.SUPPLIER",
+//                                         ", HAT.FRESHNESS",
+//                                         "]) */ DISTINCT F_TXNNUM, F_CLIENTNUM FROM (",
+//                                         ") AS TMP1 CROSS JOIN (",
+//                                         "SELECT * FROM HAT.FRESHNESS",
+//					 " UNION ALL ",
+//					 ") AS TMP2 ORDER BY F_CLIENTNUM"};
+//        for(unsigned int i=1; i<=(unsigned int)UserInput::getTranClients(); i++){
+//                if (UserInput::getTranClients() == 1){
+//			queryParts[0] += queryParts[1]+std::to_string(i)+queryParts[2];
+//                        subQuery += queryParts[4]+std::to_string(i);
+//                }
+//                else if(i!=(unsigned int)UserInput::getTranClients()){
+//			queryParts[0] += queryParts[1]+std::to_string(i);
+//			subQuery += queryParts[4]+std::to_string(i)+queryParts[5];
+//                }
+//                else {
+//                        queryParts[0] += queryParts[1]+std::to_string(i)+queryParts[2];
+//			subQuery += queryParts[4]+std::to_string(i);
+//                }
+//        }
+//    	for(unsigned int q=0; q<13; q++){
+//    		if(UserInput::getTranClients()>0){
+//            		query = queryParts[0]+SQLDialect::analyticalQueries[q]+queryParts[3]+subQuery+queryParts[6];
+//	    		Driver::prepareStmt(dbc, qStmt[q+13], query.c_str());
+//		}
+//        	Driver::prepareStmt(dbc, qStmt[q], SQLDialect::analyticalQueries[q].c_str());
+//    	}
+//       }
 }
 
 int AnalyticalClient::ExecuteQuery(int& q, Globals* g){
+    int tries = 0;
     int ret = -1;
     vector<double> fresh;
     double maxFresh = 0.0;
@@ -96,12 +97,16 @@ int AnalyticalClient::ExecuteQuery(int& q, Globals* g){
     if(g->freshnessPeriod == 1 && UserInput::getTranClients()>0){
 	while(ret!=0){
 		ret = Driver::executeStmt(qStmt[q+13]);
+		tries++ ;
+		if (tries >= numTries) break;
 	}
 	done = 1;
 	}
     else if((g->freshnessPeriod == 0 &&  UserInput::getTranClients() >= 0) || (g->freshnessPeriod == 1 &&  UserInput::getTranClients() == 0)) {
 	while(ret!=0){
         	ret = Driver::executeStmt(qStmt[q]);
+        	tries++ ;
+		    if (tries >= numTries) break;
 	}
     }
   

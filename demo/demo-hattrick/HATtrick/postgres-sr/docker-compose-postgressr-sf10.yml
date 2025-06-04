@@ -23,6 +23,7 @@ services:
       -c wal_level=replica
       -c max_wal_senders=10
       -c hot_standby=on
+      -c default_transaction_isolation=serializable
     ports:
       - "5432:5432"
     volumes:
@@ -45,7 +46,7 @@ services:
       WORK_MEM: 128MB
       MAINTENANCE_WORK_MEM: 512MB
       WAL_BUFFERS: 32MB
-      MAX_STANDBY_STREAMING_DELAY: 1000s
+      MAX_STANDBY_STREAMING_DELAY: 1200s
     depends_on:
       - primary
     shm_size: 1g

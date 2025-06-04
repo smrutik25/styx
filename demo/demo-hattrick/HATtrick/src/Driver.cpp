@@ -2,24 +2,30 @@
 #include "UserInput.h"
 using namespace std;
 
-void Driver::extract_error(const char* fn, SQLHANDLE& handle, SQLSMALLINT type){
+void Driver::extract_error(const char* fn, SQLHANDLE& handle, SQLSMALLINT type) {
     SQLINTEGER i = 0;
     SQLINTEGER native;
     SQLCHAR state[7] = {0};
-    SQLCHAR text[256]= {0};
+    SQLCHAR text[256] = {0};
     SQLSMALLINT len;
     SQLRETURN ret;
-    cout << "\nThe driver reported the following diagnostics whilst running " << fn << "\n\n";
-    do
-    {
-        ret = SQLGetDiagRec(type, handle, ++i, state, &native, text, sizeof(text), &len );
-        if (SQL_SUCCEEDED(ret))
-            cout << "SQL_SUCCESS_WITH_INFO:\n"
-                 << "   State: " << state << "\n"
-                 << "   Native error code: " << native  << "\n"
-                 << "   Message text: " << text << "\n";
+
+    std::cout << "\nThe driver reported the following diagnostics whilst running " << fn << "\n\n";
+
+    bool foundError = false;
+    do {
+        ret = SQLGetDiagRec(type, handle, ++i, state, &native, text, sizeof(text), &len);
+        if (ret == SQL_SUCCESS || ret == SQL_SUCCESS_WITH_INFO) {
+            foundError = true;
+            std::cout << "   State: " << state << "\n"
+                      << "   Native error code: " << native << "\n"
+                      << "   Message text: " << text << "\n";
+        }
+    } while (ret == SQL_SUCCESS || ret == SQL_SUCCESS_WITH_INFO);
+
+    if (!foundError) {
+        std::cout << "No diagnostic records returned.\n";
     }
-    while( ret == SQL_SUCCESS );
 }
 
 void Driver::setEnv(SQLHENV& env){

@@ -23,6 +23,7 @@ services:
       -c wal_level=replica
       -c max_wal_senders=10
       -c hot_standby=on
+      -c default_transaction_isolation=serializable
     ports:
       - "5432:5432"
     volumes:

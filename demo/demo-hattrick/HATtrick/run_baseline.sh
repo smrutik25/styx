@@ -16,6 +16,8 @@ else
   exit 1
 fi
 
+rm -rf "results"
+
 bash start_postgres.sh "$scale_factor"
 sleep 10
 ./HATtrickBench -init -dsn PostgresPrimary -usr myuser -pwd mypassword -pa /data/datagen -db postgres

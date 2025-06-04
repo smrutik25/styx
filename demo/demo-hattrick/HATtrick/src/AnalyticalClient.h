@@ -20,6 +20,7 @@ private:
     vector<double> freshnessVector;   // freshness  for each analytical query executed in the current thread
     vector<vector<double>> executionTime;   // execution time of each query
     int testDuration;
+    const int numTries = 3;
     long startTime;    // start time of the current analytical query, different for each A client
 
 public:

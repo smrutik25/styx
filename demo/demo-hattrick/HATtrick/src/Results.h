@@ -13,6 +13,7 @@ private:
     ofstream resultsStream;
     int totalQueries = 0;
     int totalTxns = 0;
+    int totalFailedTxns = 0;
     int tempTotalTxns = 0;
     double txnLatency[3] = {0.0};
     double queryExecTime[13] = {0.0};
