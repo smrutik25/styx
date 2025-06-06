@@ -30,4 +30,7 @@ exec docker-entrypoint.sh postgres \
   -c work_mem=${WORK_MEM} \
   -c maintenance_work_mem=${MAINTENANCE_WORK_MEM} \
   -c wal_buffers="${WAL_BUFFERS}" \
-  -c max_standby_streaming_delay="${MAX_STANDBY_STREAMING_DELAY}"
+  -c max_standby_streaming_delay="${MAX_STANDBY_STREAMING_DELAY}" \
+  -c max_parallel_workers=4 \
+  -c max_parallel_workers_per_gather=2 \
+  -c effective_cache_size="${EFFECTIVE_CACHE_SIZE}"

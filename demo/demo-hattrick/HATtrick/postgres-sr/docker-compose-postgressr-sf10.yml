@@ -1,6 +1,8 @@
 services:
   primary:
-    build: primary
+    build:
+      context: ../.
+      dockerfile: ./postgres-sr/primary/Dockerfile
     container_name: pg_primary
     environment:
       POSTGRES_USER: myuser
@@ -17,24 +19,29 @@ services:
       -c checkpoint_timeout=30min
       -c wal_keep_size=2GB
       -c shared_buffers=2GB
-      -c work_mem=128MB
+      -c work_mem=256MB
       -c maintenance_work_mem=512MB
       -c wal_buffers=32MB
       -c wal_level=replica
       -c max_wal_senders=10
       -c hot_standby=on
-      -c default_transaction_isolation=serializable
+      -c max_parallel_workers=8
+      -c max_parallel_workers_per_gather=4
+      -c effective_cache_size=6GB
+#      -c default_transaction_isolation=serializable
     ports:
       - "5432:5432"
     volumes:
       - primary_data:/var/lib/postgresql/data
-      - .././datagen:/data/datagen
+#      - .././datagen:/data/datagen
       - ./primary/pg_hba.conf:/etc/postgresql/pg_hba.conf
     networks:
       - pgnet
 
   replica:
-    build: replica
+    build:
+      context: ../.
+      dockerfile: ./postgres-sr/replica/Dockerfile
     container_name: pg_replica
     environment:
       POSTGRES_USER: myuser
@@ -47,6 +54,9 @@ services:
       MAINTENANCE_WORK_MEM: 512MB
       WAL_BUFFERS: 32MB
       MAX_STANDBY_STREAMING_DELAY: 1200s
+      MAX_PARALLEL_WORKERS: 8
+      MAX_PARALLEL_WORKERS_PER_GATHER: 4
+      EFFECTIVE_CACHE_SIZE: 6GB
     depends_on:
       - primary
     shm_size: 1g

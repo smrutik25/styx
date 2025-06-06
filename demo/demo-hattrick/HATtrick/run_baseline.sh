@@ -3,7 +3,11 @@
 scale_factor="$1"
 
 make all
-echo "Current directory: $(pwd)"
+
+rm -rf datagen
+echo "Creating data directory"
+mkdir datagen
+./HATtrickBench -gen -pa ./datagen -sf "$scale_factor"
 
 if [ "$scale_factor" = "1" ]; then
   warmup=10
@@ -20,8 +24,9 @@ rm -rf "results"
 
 bash start_postgres.sh "$scale_factor"
 sleep 10
-./HATtrickBench -init -dsn PostgresPrimary -usr myuser -pwd mypassword -pa /data/datagen -db postgres
-./HATtrickBench -frontier -dsn PostgresDocker -dsn2 PostgresReplica -usr myuser -pwd mypassword -wd "$warmup" -td "$runtime" -db postgres -t sp
+./HATtrickBench -init -dsn PostgresPrimary -usr myuser -pwd mypassword -pa /data/datagen -db postgres -sf "$scale_factor"
+./HATtrickBench -frontier -dsn PostgresDocker -dsn2 PostgresReplica -usr myuser -pwd mypassword -wd "$warmup" -td "$runtime" -db postgres -t sp  -sf "$scale_factor"
 
 bash stop_postgres.sh "$scale_factor"
+echo "Deleting data directory"
 rm -rf datagen

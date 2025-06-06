@@ -14,6 +14,7 @@ void Results::setTotalTxns(vector<TransactionalClient*>& t){
     for(int i=0; i<UserInput::getTranClients(); i++) {
         totalTxns += t[i]->GetLocalCounter();
         totalFailedTxns += t[i]->GetFailCounter();
+        totalFails += t[i]->GetTotalFailCounter();
     }
 }
 
@@ -55,6 +56,7 @@ void Results::saveResults(bool frontier_calc) {
     resultsStream << "Total # of transactions executed: " << totalTxns << endl;
     resultsStream << "Total # of transactions failed: " << totalFailedTxns << endl;
     resultsStream << "Percentage # of transactions failed: " << ft << endl;
+    resultsStream << "Total failures (inc. retries): " << totalFails << endl;
     resultsStream << "Total # of queries executed: " << totalQueries << endl;
     resultsStream << "Anal. Throughput [queries/sec]: " << getAnalyticalThroughput()  << endl;
     resultsStream << "Tran. Throughput [transactions/sec]: " << getTransactionalThroughput() << endl;
@@ -83,7 +85,7 @@ void Results::saveResults(bool frontier_calc) {
         resultsStream << tt << "," << at <<  endl;
         resultsStream.close();
         resultsStream.open("results/txn-failures-SF"+to_string(UserInput::getSF())+".csv", ofstream::out | ofstream::app | ofstream::binary);
-        resultsStream << ft <<  endl;
+        resultsStream << ft << "," << totalFails << endl;
         resultsStream.close();
     }
     if(UserInput::getAnalClients()>0){

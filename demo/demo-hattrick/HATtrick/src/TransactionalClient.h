@@ -26,6 +26,7 @@ private:
     int localCounter = 0;           // local counter of the transactions that the current client is running
     const int numTries = 3;
     int failCounter = 0;
+    int totalFailCounter = 0;
 public:
     TransactionalClient();
 //    void PrepareTransactionStmt(SQLHDBC& dbc);
@@ -52,6 +53,8 @@ public:
     int& GetLocalCounter();
     void IncrementFailCounter();
     int& GetFailCounter();
+    void IncrementTotalFailCounter();
+    int& GetTotalFailCounter();
     void PrepareFreshnessStmt(SQLHDBC &dbc);
     SQLHSTMT& GetFreshnessStmt();
 };

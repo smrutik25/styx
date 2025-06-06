@@ -242,6 +242,7 @@ void Workload::AnalyticalWorkload(AnalyticalClient* aClient , Globals* g){
     long endTest;
     SQLHENV env = 0;
     SQLHDBC dbc = 0;
+    try {
     Driver::setEnv(env);
     Driver::connectDB2(env, dbc); // For Postgres-SR
     aClient->PrepareAnalyticalStmt(dbc);     // prepare the stmt for all the 13 queries once in the beginning
@@ -258,6 +259,17 @@ void Workload::AnalyticalWorkload(AnalyticalClient* aClient , Globals* g){
     aClient->SetTestDuration(endTest);
     cout << "[Analytical] Testing is done for thread: " << aClient->GetThreadNum() << endl;
     aClient->FreeQueryStmt(g);
+    }
+    catch (const std::exception& e) {
+        cerr << "[Error] Failed to setup DB connection or prepare statements in analytical client: " << e.what() << endl;
+        if (dbc) Driver::disconnectDB(dbc);
+        return;
+    }
+    catch (...) {
+        cerr << "[Error] Unknown error occurred in analytical client during DB setup or preparation." << endl;
+        if (dbc) Driver::disconnectDB(dbc);
+        return;
+    }
     Driver::disconnectDB(dbc);
     cout << "Total number of queries: " << aClient->GetQueriesNum() << endl;
     cout << "Duration of analytical testing: " << endTest << endl;

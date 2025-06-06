@@ -73,17 +73,13 @@ int main(int argc, char* argv[]){
 
     else if(UserInput::getWork() == 3){         // User selected to run the benchmark
         auto* frontier = new Frontier();
-        cout << "FINDING MAX TCAC";
         frontier->findMaxTCAC();
-        cout << "FINDING MAX AC";
         int ac = frontier->getMaxAC();
-        cout << "FINDING MAX TC";
         int tc = frontier->getMaxTC();
         // max vals found, now frontier calculation is done
         frontier->setState();
         frontier->setMaxTC(tc);
         frontier->setMaxAC(ac);
-        cout << "FINDING FRONTIER";
         frontier->findFrontier();
     }
 

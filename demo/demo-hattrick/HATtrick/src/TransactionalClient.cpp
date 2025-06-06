@@ -110,6 +110,9 @@ int TransactionalClient::NewOrderTransactionPS(SQLHDBC& dbc){
     Driver::bindIntParam(GetTransactionStmt(), txn_num, 17);
     while(ret != 0){
     	ret = Driver::executeStmtDiar(GetTransactionStmt(), SQLDialect::transactionalQueries[UserInput::getdbChoice()][0].c_str());
+    	if(ret != 0){
+    	    IncrementTotalFailCounter();
+    	}
     	tries++ ;
     	if(tries >= numTries) break;
     }
@@ -343,6 +346,9 @@ int TransactionalClient::PaymentTransactionSP(SQLHDBC& dbc){
     [[maybe_unused]] int ret = -1;
     while(ret != 0){
     	ret = Driver::executeStmtDiar(GetTransactionStmt(), SQLDialect::transactionalQueries[UserInput::getdbChoice()][1].c_str());
+    	if(ret != 0){
+    	    IncrementTotalFailCounter();
+    	}
     	tries++ ;
     	if(tries >= numTries) break;
     }
@@ -406,6 +412,9 @@ int TransactionalClient::CountOrdersTransactionSP(SQLHDBC& dbc){
     Driver::bindIntParam(GetTransactionStmt(), txn_num, 3);
     while(ret != 0){
     	ret = Driver::executeStmtDiar(GetTransactionStmt(), SQLDialect::transactionalQueries[UserInput::getdbChoice()][2].c_str());
+    	if(ret != 0){
+    	    IncrementTotalFailCounter();
+    	}
     	tries++ ;
     	if(tries >= numTries) break;
     }	
@@ -513,6 +522,14 @@ void TransactionalClient::IncrementFailCounter(){
 
 int& TransactionalClient::GetFailCounter(){
     return failCounter;
+}
+
+void TransactionalClient::IncrementTotalFailCounter(){
+    totalFailCounter++;
+}
+
+int& TransactionalClient::GetTotalFailCounter(){
+    return totalFailCounter;
 }
 
 SQLHSTMT& TransactionalClient::GetFreshnessStmt(){
