@@ -12,6 +12,7 @@ ctx.value
 AMOUNT
 """
 
+
 @history_operator.register
-async def insert(ctx: StatefulFunction, amount):
+async def register_payment(ctx: StatefulFunction, amount):
     ctx.put({"AMOUNT": amount})

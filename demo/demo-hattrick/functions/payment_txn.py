@@ -5,6 +5,7 @@ from styx.common.stateful_function import StatefulFunction
 payment_txn_operator = Operator('payment_txn')
 # Stateless
 
+
 @payment_txn_operator.register
 async def payment_txn(ctx: StatefulFunction, params: dict):
     amount = params["AMT"]

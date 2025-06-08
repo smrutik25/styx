@@ -36,14 +36,16 @@ async def new_order_txn(ctx: StatefulFunction, params: dict):
         "RR": 0, # replies received
         "TP": 0 # total price
     }
+    order_params = {'OD': params['OD'], 'SP': params['SP']}
     # Call the line_order functions
     for line_number in line_numbers:
         line_order_key: str = f"{order_key}:{line_number}"
+        line_order_params = order_params | params['LO'][line_number]
         ctx.call_remote_async(
             'line_order',
             'new_order_txn',
             line_order_key,
             # needed to get back the reply
-            (ctx.key, params)
+            (ctx.key, line_order_params)
         )
     ctx.put(txn_metadata)

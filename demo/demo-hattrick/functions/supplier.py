@@ -17,6 +17,7 @@ PHONE
 YTD
 """
 
+
 @supplier_operator.register
 async def register_payment(ctx: StatefulFunction, amount):
     value = ctx.get()

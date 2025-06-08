@@ -50,29 +50,65 @@ async def receive_part(ctx: StatefulFunction, entrypoint_key, part_price: int):
 
 
 @line_order_operator.register
+async def set_customer_id(ctx: StatefulFunction, cust_key):
+    value = ctx.get()
+    value["CUSTKEY"] = cust_key
+    ctx.put(value)
+
+
+@line_order_operator.register
+async def set_supplier_id(ctx: StatefulFunction, sup_key):
+    value = ctx.get()
+    value["SUPKEY"] = sup_key
+    ctx.put(value)
+
+
+@line_order_operator.register
+async def set_date(ctx: StatefulFunction, odate):
+    value = ctx.get()
+    value["ORDERDATE"] = odate
+    value["COMMITDATE"] = odate  # TODO: Increment this by days
+    ctx.put(value)
+
+
+@line_order_operator.register
 async def new_order_txn(ctx: StatefulFunction, entrypoint_key, params: dict):
     entry = {
-        "CUSTKEY": params['CK'],
         "PARTKEY": params['PK'],
-        "SUPKEY": params['SK'],
-        "ORDERDATE": params['OD'],
         "ORDPRIORITY": params['OP'],
         "SHIPPRIORITY": params['SP'],
         "QUANTITY": params['Q'],
         "EXTENDEDPRICE": 0,  # For this specific part of the order
         "ORDTOTALPRICE": 0,  # The total price after every part is accounted for
         "DISCOUNT": params['D'],
-        "REVENUE": 0, # extended-price with the discount applied
+        "REVENUE": 0,  # extended-price with the discount applied
         "SUPPLYCOST": params['SC'],
         "TAX": params['T'],
-        "COMMITDATE": params['CD'],
         "SHIPMODE": params['SM'],
     }
+    ctx.call_remote_async(
+        'customer_idx',
+        'get_customer_id',
+        params['CN'],
+        (ctx.key, )
+    )
+    ctx.call_remote_async(
+        'date',
+        'get_date',
+        params['OD'],
+        (ctx.key,)
+    )
+    ctx.call_remote_async(
+        'supplier_idx',
+        'get_supplier_id',
+        params['SN']
+        (ctx.key, )
+    )
     ctx.call_remote_async(
         'part',
         'get_part_price',
         params['PK'],
         # needed to get back the reply to the entrypoint
-        (entrypoint_key, )
+        (entrypoint_key, ctx.key)
     )
     ctx.put(entry)
