@@ -91,6 +91,7 @@ double Frontier::runBenchmark(int& peak, int& choice){
 
 void Frontier::findMaxTCAC(){
     int choice[] = {1,2};
+    int max_limits[] = {24,40};
     double current_throughput, previous_throughput;
     int init_peak, previous_peak, final_peak;
     bool init_peak_found ;
@@ -107,9 +108,13 @@ void Frontier::findMaxTCAC(){
         previous_peak = i;
         previous_throughput = runBenchmark(i, choice[c]);
         while(init_peak_found==false){
-            clients = i*step;
+            clients = i * step;
+            if (clients > max_limits[c]) {
+                init_peak = previous_peak;
+                break;
+            }
             current_throughput = runBenchmark(clients, choice[c]);
-            if(current_throughput - previous_throughput > 0.05*previous_throughput){
+            if(current_throughput - previous_throughput > 0.05 * previous_throughput){
                 previous_throughput = current_throughput;
                 previous_peak = clients;
             }
@@ -119,11 +124,17 @@ void Frontier::findMaxTCAC(){
             }
             i++;
         }
-        i=1;
+        i = 1;
+        previous_throughput = runBenchmark(init_peak, choice[c]);
+        previous_peak = init_peak;
         while(final_peak_found==false){
-            clients = init_peak+i;
+            clients = init_peak + i;
+            if (clients > max_limits[c]) {
+                final_peak = previous_peak;
+                break;
+            }
             current_throughput = runBenchmark(clients, choice[c]);
-            if(current_throughput - previous_throughput > 0.05*previous_throughput){
+            if(current_throughput - previous_throughput > 0.05 * previous_throughput){
                 previous_throughput = current_throughput;
                 previous_peak = clients;
             }
@@ -138,7 +149,6 @@ void Frontier::findMaxTCAC(){
         else
             setMaxAC(final_peak);
     }
-    
 }
 
 void Frontier::findFrontier(){

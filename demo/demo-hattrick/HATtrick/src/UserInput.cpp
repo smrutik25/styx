@@ -2,11 +2,11 @@
 #include "UserInput.h"
 
 const int UserInput::BATCH_SIZE = 64;
-int UserInput::SF=1;
-int UserInput::custSize = 30000;
-int UserInput::suppSize = 2000;
-int UserInput::partSize = 200000;
-int UserInput::loSize = 1500000;
+const int UserInput::SF=10;
+const int UserInput::custSize = 30000 * UserInput::SF;
+const int UserInput::suppSize = 2000  * UserInput::SF;
+const int UserInput::partSize = 200000 * static_cast <int>(floor(1+log2(UserInput::SF)));
+const int UserInput::loSize = 1500000 * UserInput::SF;
 string UserInput::dataPath;
 string UserInput::dsn;
 string UserInput::dsn2;
@@ -21,14 +21,6 @@ int UserInput::warmUpDuration;
 string UserInput::delimiter="!";
 database UserInput::dbChoice;
 exectype UserInput::execType;
-
-void UserInput::setSF(int sf) {
-    SF = sf;
-    custSize = 30000 * SF;
-    suppSize = 2000 * SF;
-    partSize = 200000 * static_cast<int>(floor(1 + log2(SF)));
-    loSize   = 1500000 * SF;
-}
 
 const int UserInput::getBatchSize(){
     return UserInput::BATCH_SIZE;
@@ -176,7 +168,6 @@ void UserInput::processUserIn(int argc, char* argv[]){
         if(UserInput::work == 1){
             for(int i=0; i<argc; i++){
                     if(strcmp(argv[i], "-pa") == 0 )  UserInput::dataPath = string(argv[i+1]);
-                    else if(strcmp(argv[i], "-sf") == 0 ) UserInput::setSF(atoi(argv[i+1]));
                     //else if(strcmp(argv[i], "-d") == 0 )  UserInput::delimiter = string(argv[i+1]);
             }
             found = 0;
@@ -184,7 +175,6 @@ void UserInput::processUserIn(int argc, char* argv[]){
         else if (UserInput::work == 2){
             for(int i=0; i<argc; i++){
                     if(strcmp(argv[i], "-dsn") == 0 )  UserInput::dsn = string(argv[i+1]);
-                    else if(strcmp(argv[i], "-sf") == 0 ) UserInput::setSF(atoi(argv[i+1]));
                     else if(strcmp(argv[i], "-usr") == 0 )  UserInput::dbUser = string(argv[i+1]);
                     else if(strcmp(argv[i], "-pwd") == 0 )  UserInput::dbPwd = string(argv[i+1]);
                     else if(strcmp(argv[i], "-pa") == 0 )  UserInput::dataPath = string(argv[i+1]);
@@ -204,7 +194,6 @@ void UserInput::processUserIn(int argc, char* argv[]){
         else if (UserInput::work == 3){
             for(int i=0; i<argc; i++){
                     if(strcmp(argv[i], "-dsn") == 0 )  UserInput::dsn = string(argv[i+1]);
-                    else if(strcmp(argv[i], "-sf") == 0 ) UserInput::setSF(atoi(argv[i+1]));
                     else if(strcmp(argv[i], "-usr") == 0 )  UserInput::dbUser = string(argv[i+1]);
                     else if(strcmp(argv[i], "-pwd") == 0 )  UserInput::dbPwd = string(argv[i+1]);
                     else if(strcmp(argv[i], "-dsn2") == 0 )  UserInput::dsn2 = string(argv[i+1]);

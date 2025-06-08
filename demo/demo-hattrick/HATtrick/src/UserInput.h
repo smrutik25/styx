@@ -15,11 +15,11 @@ class UserInput{
 
 	private:
         static const int BATCH_SIZE;
-	    static int SF;                // scaling factor
-	    static int custSize;          // size of the generated Customer table
-        static int suppSize;          // size of the generated Supplier table
-        static int partSize;          // size of the generated Part table
-        static int loSize;            // size of the generated LineOrder table
+	    static const int SF;                // scaling factor
+	    static const int custSize;          // size of the generated Customer table
+        static const int suppSize;          // size of the generated Supplier table
+        static const int partSize;          // size of the generated Part table
+        static const int loSize;            // size of the generated LineOrder table
 	    static string dataPath;             // path of the generated data
 	    static string dsn;                  // data source name
 	    static string dsn2;

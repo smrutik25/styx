@@ -9,8 +9,8 @@ services:
       POSTGRES_PASSWORD: mypassword
       POSTGRES_DB: mydb
     shm_size: 1g
-    cpus: 4
-    mem_limit: 4g
+#    cpus: 4
+#    mem_limit: 4g
     command: >
       postgres
       -c hba_file=/etc/postgresql/pg_hba.conf
@@ -28,12 +28,11 @@ services:
       -c max_parallel_workers=8
       -c max_parallel_workers_per_gather=4
       -c effective_cache_size=6GB
-#      -c default_transaction_isolation=serializable
+      -c default_transaction_isolation=serializable
     ports:
       - "5432:5432"
     volumes:
       - primary_data:/var/lib/postgresql/data
-#      - .././datagen:/data/datagen
       - ./primary/pg_hba.conf:/etc/postgresql/pg_hba.conf
     networks:
       - pgnet
@@ -59,9 +58,9 @@ services:
       EFFECTIVE_CACHE_SIZE: 6GB
     depends_on:
       - primary
-    shm_size: 1g
-    cpus: 2
-    mem_limit: 4g
+    shm_size: 4g
+#    cpus: 2
+#    mem_limit: 4g
     ports:
       - "5433:5432"
     volumes:

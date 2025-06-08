@@ -9,8 +9,8 @@ services:
       POSTGRES_PASSWORD: mypassword
       POSTGRES_DB: mydb
     shm_size: 1g
-#    cpus: 4
-#    mem_limit: 4g
+#    cpus: 6
+#    mem_limit: 8g
     command: >
       postgres
       -c hba_file=/etc/postgresql/pg_hba.conf
@@ -58,8 +58,8 @@ services:
       EFFECTIVE_CACHE_SIZE: 1GB
     depends_on:
       - primary
-#    cpus: 2
-#    mem_limit: 4g
+#    cpus: 4
+#    mem_limit: 8g
     shm_size: 1g
     ports:
       - "5433:5432"
