@@ -9,8 +9,6 @@ services:
       POSTGRES_PASSWORD: mypassword
       POSTGRES_DB: mydb
     shm_size: 1g
-#    cpus: 4
-#    mem_limit: 4g
     command: >
       postgres
       -c hba_file=/etc/postgresql/pg_hba.conf
@@ -31,6 +29,11 @@ services:
       -c default_transaction_isolation=serializable
     ports:
       - "5432:5432"
+    deploy:
+      resources:
+        limits:
+          cpus: '10.0'
+          memory: 30g
     volumes:
       - primary_data:/var/lib/postgresql/data
       - ./primary/pg_hba.conf:/etc/postgresql/pg_hba.conf
@@ -59,10 +62,13 @@ services:
     depends_on:
       - primary
     shm_size: 4g
-#    cpus: 2
-#    mem_limit: 4g
     ports:
       - "5433:5432"
+    deploy:
+      resources:
+        limits:
+          cpus: '40.0'
+          memory: 30g
     volumes:
       - replica_data:/var/lib/postgresql/replica_data
     networks:

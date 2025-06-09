@@ -82,27 +82,5 @@ int main(int argc, char* argv[]){
         frontier->setMaxAC(ac);
         frontier->findFrontier();
     }
-
-//    else if(UserInput::getWork() == 4){         // User selected to run the benchmark
-//        auto startTime = chrono::system_clock::to_time_t(chrono::system_clock::now());
-//        cout << "\nChoice: [3] Run Benchmark" << endl;
-//        cout << "START TIME of [3] " << ctime(&startTime) << endl;
-//        SQLHENV env = 0;
-//        Driver::setEnv(env);
-//        auto* g = new Globals();
-//        GetFromDB::getNumOrders(reinterpret_cast<int &>(g->loOrderKey), env);
-//        g->barrierW = new Barrier(UserInput::getTranClients()+UserInput::getAnalClients());
-//        g->barrierT = new Barrier(UserInput::getTranClients()+UserInput::getAnalClients());
-//        g->typeOfRun = none;
-//        auto* workload = new Workload();
-//        workload->ExecuteWorkloads(g);
-//        auto* r = new Results();
-//        workload->ReturnResults(r);
-//        auto endTime = chrono::system_clock::to_time_t(chrono::system_clock::now());
-//        cout << "\n[DONE] Choice: [3] Run Benchmark" << endl;
-//        cout << "START TIME of [3] " << ctime(&startTime) << endl;
-//        cout << "END TIME of [3] " << ctime(&endTime) << endl;
-//    }
     return 0;
-
 }

@@ -34,7 +34,6 @@ public:
     Workload();
     static bool runTime(chrono::steady_clock::time_point& startTime, int duration);
     static void AnalyticalStream(AnalyticalClient* aClient, Globals* g);
-//    static void TransactionalStreamPS(TransactionalClient* tClient, Globals* g, SQLHDBC& dbc);  // for Prepared Statements
     static void TransactionalStreamSP(TransactionalClient* tClient, Globals* g, SQLHDBC& dbc);  // for Stored Procedures
     static void AnalyticalWorkload(AnalyticalClient* aClient, Globals* g);
     static void TransactionalWorkload(TransactionalClient* tClient, Globals* g, int t);

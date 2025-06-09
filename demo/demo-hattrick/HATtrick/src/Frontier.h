@@ -37,9 +37,5 @@ public:
     void findFrontier();
     bool getState();
     void setState();
-    /*void addTransactionalThroughput(double tt);
-    void addAnalyticalThroughput(double at);
-    vector<double>& getTransactionalThroughputs();
-    vector<double>& getAnalyticalThroughputs();*/
 };
 #endif //HATTRICKBENCH_FRONTIER_H

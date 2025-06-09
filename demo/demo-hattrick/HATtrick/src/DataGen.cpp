@@ -50,6 +50,7 @@ void DataGen::lineorderGen(int& loKey){
 		lineorderStream << quantity << UserInput::getDelimiter();					                        // value for attribute LO_QUANTITY
 		double extendedprice = quantity*DataSrc::getPrice(partkey);
 		lineorderStream << extendedprice  << UserInput::getDelimiter();				                    // value for attribute LO_EXTENDEDPRICE
+		lineorderStream << extendedprice * 3  << UserInput::getDelimiter();				                    // value for attribute LO_ORDTOTALPRICE
 		int discount = DataSrc::uniformIntDist(0, 10);
 		lineorderStream << discount << UserInput::getDelimiter();					                        // value for attribute LO_DISCOUNT
 		double revenue = (extendedprice*(100-discount))/100;
