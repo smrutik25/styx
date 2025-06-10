@@ -39,10 +39,16 @@ STYX_PORT: int = 8886
 KAFKA_URL = 'localhost:9092'
 warmup_seconds = int(sys.argv[6])
 SF = int(sys.argv[7])
-cust_size = 30000 * SF
-supp_size = 2000 * SF
-part_size = 200000 * math.floor(1 + math.log2(SF))
-lo_size = 1500000 * SF
+# cust_size = 30000 * SF
+# supp_size = 2000 * SF
+# part_size = 200000 * math.floor(1 + math.log2(SF))
+# lo_size = 1500000 * SF
+# last_order_key = lo_size + 1
+
+cust_size = 300 * SF
+supp_size = 20 * SF
+part_size = 200 * math.floor(1 + math.log2(SF))
+lo_size = 1500 * SF
 last_order_key = lo_size + 1
 
 start_date = datetime.strptime("19920101", '%Y%m%d')
@@ -50,7 +56,7 @@ end_date = datetime.strptime("19981231", '%Y%m%d')
 delta_days = (end_date - start_date).days + 1
 date_list = [(start_date + timedelta(days=x)).strftime('%B %-d, %Y') for x in range(delta_days)]
 
-data_file_path = "HATtrick/datagen"
+data_file_path = "HATtrick/datagen_new"
 script_path = os.path.dirname(os.path.realpath(__file__))
 
 # Create Stateflow Graph
@@ -192,7 +198,8 @@ def populate_date(styx: SyncStyxClient):
         for _, line in tqdm(enumerate(reader), desc="Populating Date Data"):
             date_key = int(line[0])
             date_idx_key = line[1]
-            partition: int = styx.get_operator_partition(date_key, date_operator)
+            date_partition: int = styx.get_operator_partition(date_key, date_operator)
+            date_idx_partition: int = styx.get_operator_partition(date_idx_key, date_idx_operator)
             date_data = {
                 'DATE': line[1],
                 'DATEOFWEEK': line[2],
@@ -211,8 +218,8 @@ def populate_date(styx: SyncStyxClient):
                 'HOLIDAYFL': bool(line[15]),
                 'WEEKDAYFL': bool(line[16]),
             }
-            date_partitions[partition][date_key] = date_data
-            date_idx_partitions[partition][date_idx_key] = date_key
+            date_partitions[date_partition][date_key] = date_data
+            date_idx_partitions[date_idx_partition][date_idx_key] = date_key
         for partition, partition_data in date_partitions.items():
             print(f"Populating {date_operator.name}:{partition}...")
             styx.init_data(date_operator, partition, partition_data)
@@ -306,13 +313,13 @@ def benchmark_runner(proc_num) -> dict[bytes, dict]:
         sec_start = timer()
         for i in range(messages_per_second):
             if i % (messages_per_second // sleeps_per_second) == 0:
-                if i % 50 == 0:
+                if i % 100 == 0:
                     styx.send_query("SELECT COUNT(*) FROM CUSTOMER;")
                     styx.send_query("SELECT COUNT(*) FROM PART;")
                     styx.send_query("SELECT COUNT(*) FROM DATE;")
                     styx.send_query("SELECT COUNT(*) FROM SUPPLIER;")
                     styx.send_query("SELECT COUNT(*) FROM HISTORY;")
-                    # styx.send_query("SELECT COUNT(*) FROM LINE_ORDER;")
+                    styx.send_query("SELECT COUNT(*) FROM LINE_ORDER;")
                 time.sleep(sleep_time)
             operator, key, func_name, params = next(hattrick_generator)
             future = styx.send_event(operator=operator,

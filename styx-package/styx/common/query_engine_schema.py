@@ -7,9 +7,8 @@ class ColumnBaseSchema(BaseModel):
     type: Literal["base"] = "base"
     column_name: str
     data_type: str
-    composite_key: Annotated[str, Field(default=None)]
     datetime_format: Annotated[str, Field(default=None)]
-    nullable: Annotated[bool, Field(default=False)]
+    nullable: Annotated[bool, Field(default=True)]
     primary_key: Annotated[bool, Field(default=False)]
     reference: Annotated[str, Field(default=None)]
 
