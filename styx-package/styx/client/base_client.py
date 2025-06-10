@@ -35,6 +35,7 @@ class BaseStyxClient(ABC):
         self._styx_coordinator_adr: str = styx_coordinator_adr
         self._styx_coordinator_port: int = styx_coordinator_port
         self._delivery_timestamps: dict[bytes, int] = {}
+        self._query_delivery_timestamps: dict[bytes, int] = {}
         self._current_active_graph: StateflowGraph | None = None
         self.minio = minio
         if self.minio is not None and not self.minio.bucket_exists("styx-snapshots"):
@@ -43,6 +44,10 @@ class BaseStyxClient(ABC):
     @property
     def delivery_timestamps(self):
         return self._delivery_timestamps
+
+    @property
+    def query_delivery_timestamps(self):
+        return self._query_delivery_timestamps
 
     @staticmethod
     def _get_modules(stateflow_graph: StateflowGraph):
@@ -132,6 +137,11 @@ class BaseStyxClient(ABC):
                    key,
                    function: Type | str,
                    params: tuple = tuple(),
+                   serializer: Serializer = Serializer.MSGPACK) -> StyxFuture | StyxAsyncFuture:
+        raise NotImplementedError
+
+    @abstractmethod
+    def send_query(self, query: str,
                    serializer: Serializer = Serializer.MSGPACK) -> StyxFuture | StyxAsyncFuture:
         raise NotImplementedError
 

@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 from timeit import default_timer as timer
 import time
-from multiprocessing import Pool
+from concurrent.futures import ProcessPoolExecutor
 
 import pandas as pd
 import kafka_output_consumer
@@ -24,21 +24,27 @@ from styx.client import SyncStyxClient
 from functions import (customer_operator, customer_idx_operator, date_operator, date_idx_operator, history_operator,
                        line_order_operator, new_order_txn_operator, part_operator, payment_txn_operator,
                        supplier_operator, supplier_idx_operator)
+from analytical_queries import analytical_queries
 
 random.seed(42)
 
 SAVE_DIR: str = sys.argv[1]
-threads = int(sys.argv[2])
+txn_threads = int(sys.argv[2])
 N_PARTITIONS = int(sys.argv[3])
 messages_per_second = int(sys.argv[4])
 sleeps_per_second = 100
 sleep_time = 0.0085
+q_sleeps_per_second = 2
+q_sleep_time = 0.1
 seconds = int(sys.argv[5])
 STYX_HOST: str = 'localhost'
 STYX_PORT: int = 8886
 KAFKA_URL = 'localhost:9092'
 warmup_seconds = int(sys.argv[6])
 SF = int(sys.argv[7])
+query_threads = int(sys.argv[8])
+queries_per_second = int(sys.argv[9])
+num_queries = len(analytical_queries)
 # cust_size = 30000 * SF
 # supp_size = 2000 * SF
 # part_size = 200000 * math.floor(1 + math.log2(SF))
@@ -147,7 +153,7 @@ def populate_line_order(styx: SyncStyxClient):
             line_order_data = {
                 'CUSTKEY': int(line[2]),
                 'PARTKEY': int(line[3]),
-                'SUPKEY': int(line[4]),
+                'SUPPKEY': int(line[4]),
                 'ORDERDATE': int(line[5]),
                 'ORDPRIORITY': line[6],
                 'SHIPPRIORITY': line[7],
@@ -279,7 +285,7 @@ def get_payment_transaction(front_end_key):
     params: dict[str, Any] = {
         "AMT": random.randint(50, 1000),
         "ORDERKEY": front_end_key,
-        "SUPKEY": random.randint(1, supp_size)
+        "SUPPKEY": random.randint(1, supp_size)
     }
     choice = random.randint(1, 100)
     if choice <= 60:
@@ -289,7 +295,7 @@ def get_payment_transaction(front_end_key):
     return payment_txn_operator, front_end_key, 'payment_txn', (params,)
 
 
-def hattrick_workload_generator(proc_num):
+def hattrick_transaction_generator(proc_num):
     c = last_order_key + 1
     while True:
         front_end_key = int(f'{proc_num}{c}')
@@ -301,11 +307,18 @@ def hattrick_workload_generator(proc_num):
         c += 1
 
 
-def benchmark_runner(proc_num) -> dict[bytes, dict]:
+def hattrick_query_generator():
+    c = random.randint(1, num_queries)
+    while True:
+        yield c % num_queries, analytical_queries[c % num_queries]
+        c += 1
+
+
+def transactional_benchmark_runner(proc_num) -> (dict[bytes, dict], dict[bytes, dict]):
     print(f'Generator: {proc_num} starting')
     styx = SyncStyxClient(STYX_HOST, STYX_PORT, kafka_url=KAFKA_URL)
     styx.open(consume=False)
-    hattrick_generator = hattrick_workload_generator(proc_num)
+    hattrick_generator = hattrick_transaction_generator(proc_num)
     timestamp_futures: dict[bytes, dict] = {}
     time.sleep(5)
     start = timer()
@@ -313,13 +326,6 @@ def benchmark_runner(proc_num) -> dict[bytes, dict]:
         sec_start = timer()
         for i in range(messages_per_second):
             if i % (messages_per_second // sleeps_per_second) == 0:
-                if i % 100 == 0:
-                    styx.send_query("SELECT COUNT(*) FROM CUSTOMER;")
-                    styx.send_query("SELECT COUNT(*) FROM PART;")
-                    styx.send_query("SELECT COUNT(*) FROM DATE;")
-                    styx.send_query("SELECT COUNT(*) FROM SUPPLIER;")
-                    styx.send_query("SELECT COUNT(*) FROM HISTORY;")
-                    styx.send_query("SELECT COUNT(*) FROM LINE_ORDER;")
                 time.sleep(sleep_time)
             operator, key, func_name, params = next(hattrick_generator)
             future = styx.send_event(operator=operator,
@@ -333,13 +339,54 @@ def benchmark_runner(proc_num) -> dict[bytes, dict]:
         if lps < 1:
             time.sleep(1 - lps)
         sec_end2 = timer()
-        print(f'Latency per second: {sec_end2 - sec_start}')
+        print(f'Transaction latency per second: {sec_end2 - sec_start}')
     end = timer()
-    print(f'Average latency per second: {(end - start) / seconds}')
+    print(f'Average transaction latency per second: {(end - start) / seconds}')
     styx.close()
     for key, metadata in styx.delivery_timestamps.items():
         timestamp_futures[key]["timestamp"] = metadata
     return timestamp_futures
+
+
+def analytical_benchmark_runner(proc_num) -> (dict[bytes, dict], dict[bytes, dict]):
+    print(f'Generator: {proc_num} starting')
+    styx = SyncStyxClient(STYX_HOST, STYX_PORT, kafka_url=KAFKA_URL)
+    styx.open(consume=False)
+    hattrick_generator = hattrick_query_generator()
+    timestamp_futures: dict[bytes, dict] = {}
+    time.sleep(5)
+    start = timer()
+    for cur_sec in range(seconds):
+        sec_start = timer()
+        for i in range(queries_per_second):
+            if i % (queries_per_second // q_sleeps_per_second) == 0:
+                time.sleep(q_sleep_time)
+            query_id, query = next(hattrick_generator)
+            future = styx.send_query(query)
+            timestamp_futures[future.request_id] = {"q": f'{query_id}'}
+        styx.flush()
+        sec_end = timer()
+        lps = sec_end - sec_start
+        if lps < 1:
+            time.sleep(1 - lps)
+        sec_end2 = timer()
+        print(f'Analytical latency per second: {sec_end2 - sec_start}')
+    end = timer()
+    print(f'Average analytical latency per second: {(end - start) / seconds}')
+    styx.close()
+    for key, metadata in styx.query_delivery_timestamps.items():
+        timestamp_futures[key]["timestamp"] = metadata
+    return timestamp_futures
+
+
+def transactional_thread_pool():
+    with ProcessPoolExecutor(max_workers=txn_threads) as executor:
+        return list(executor.map(transactional_benchmark_runner, range(txn_threads)))
+
+
+def analytical_thread_pool():
+    with ProcessPoolExecutor(max_workers=query_threads) as executor:
+        return list(executor.map(analytical_benchmark_runner, range(query_threads)))
 
 
 def main():
@@ -349,17 +396,28 @@ def main():
     del styx_client
     print('Data populated waiting for 1 minute')
     # 5 min so that the init is surely done (snapshot buckets and duckdb)
-    time.sleep(60)
+    time.sleep(20)
     # time.sleep(300 * (SF % 5))
 
-    with Pool(threads) as p:
-        results = p.map(benchmark_runner, range(threads))
+    with ProcessPoolExecutor(max_workers=2) as main_executor:
+        txn_future = main_executor.submit(transactional_thread_pool)
+        anal_future = main_executor.submit(analytical_thread_pool)
 
-    results = {k: v for d in results for k, v in d.items()}
-    pd.DataFrame({"request_id": list(results.keys()),
-                  "timestamp": [res["timestamp"] for res in results.values()],
-                  "op": [res["op"] for res in results.values()]
+        transactional_results = txn_future.result()
+        analytical_results = anal_future.result()
+
+    transactional_results = {k: v for d in transactional_results for k, v in d.items()}
+    analytical_results = {k: v for d in analytical_results for k, v in d.items()}
+
+    pd.DataFrame({"request_id": list(transactional_results.keys()),
+                  "timestamp": [res["timestamp"] for res in transactional_results.values()],
+                  "op": [res["op"] for res in transactional_results.values()]
                   }).to_csv(f'{SAVE_DIR}/client_requests.csv',
+                            index=False)
+    pd.DataFrame({"request_id": list(analytical_results.keys()),
+                  "timestamp": [res["timestamp"] for res in analytical_results.values()],
+                  "q": [res["q"] for res in analytical_results.values()]
+                  }).to_csv(f'{SAVE_DIR}/client_query_requests.csv',
                             index=False)
 
 
@@ -375,7 +433,7 @@ if __name__ == '__main__':
         SAVE_DIR,
         messages_per_second,
         warmup_seconds,
-        threads,
+        txn_threads,
         SF
     )
 

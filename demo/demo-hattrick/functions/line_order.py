@@ -23,7 +23,7 @@ line_order_operator.set_analytical_schema([
         "data_type": "BIGINT"
     },
     {
-        "column_name": "SUPKEY",
+        "column_name": "SUPPKEY",
         "data_type": "BIGINT"
     },
     {
@@ -105,7 +105,7 @@ async def set_customer_id(ctx: StatefulFunction, cust_key):
 @line_order_operator.register
 async def set_supplier_id(ctx: StatefulFunction, sup_key):
     value = ctx.get()
-    value["SUPKEY"] = sup_key
+    value["SUPPKEY"] = sup_key
     ctx.put(value)
 
 

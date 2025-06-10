@@ -11,6 +11,8 @@ saving_dir=$8
 warmup_seconds=$9
 epoch_size=${10}
 query_engine=${11:-false}
+query_threads=${12:-0}
+query_rate=${13:-0}
 
 bash scripts/start_styx_cluster.sh "$n_part" "$epoch_size" "$n_part" "$query_engine"
 
@@ -32,8 +34,8 @@ elif [[ $workload_name == "tpcc" ]]; then
     python demo/demo-tpc-c/pure_kafka_demo.py "$saving_dir" "$client_threads" "$n_part" "$input_rate" "$total_time" "$warmup_seconds" "$n_keys"
 elif [[ $workload_name == "ssb" ]]; then
     # SSB for HATtrick
-    bash scripts/generate_ssb_dataset.sh "$n_keys"
-    python demo/demo-hattrick/pure_kafka_demo.py "$saving_dir" "$client_threads" "$n_part" "$input_rate" "$total_time" "$warmup_seconds" "$n_keys"
+#    bash scripts/generate_ssb_dataset.sh "$n_keys"
+    python demo/demo-hattrick/pure_kafka_demo.py "$saving_dir" "$client_threads" "$n_part" "$input_rate" "$total_time" "$warmup_seconds" "$n_keys" "$query_threads" "$query_rate"
 else
     echo "Benchmark not supported!"
 fi
