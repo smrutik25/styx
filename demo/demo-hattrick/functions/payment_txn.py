@@ -10,13 +10,13 @@ payment_txn_operator = Operator('payment_txn')
 async def payment_txn(ctx: StatefulFunction, params: dict):
     amount = params["AMT"]
     order_key = params["ORDERKEY"]
-    supp_key = params["SUPPKEY"]
-    if "C_NAME" in params:
+    supp_key = params["SUPKEY"]
+    if "CUSTNAME" in params:
         # Customer selection by C_NAME
         ctx.call_remote_async(
             'customer_idx',
             'register_payment',
-            params["C_NAME"],
+            params["CUSTNAME"],
             (order_key, amount)
         )
     else:

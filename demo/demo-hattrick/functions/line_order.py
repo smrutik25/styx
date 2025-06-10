@@ -44,7 +44,7 @@ async def receive_part(ctx: StatefulFunction, entrypoint_key, part_price: int):
         'receive_part_extended_price',
         entrypoint_key,
         # needed to get back the reply to the entrypoint
-        (value["EXTENDEDPRICE"], ctx.key)
+        (value["EXTENDEDPRICE"],)
     )
     ctx.put(value)
 
@@ -67,7 +67,7 @@ async def set_supplier_id(ctx: StatefulFunction, sup_key):
 async def set_date(ctx: StatefulFunction, odate):
     value = ctx.get()
     value["ORDERDATE"] = odate
-    value["COMMITDATE"] = odate  # TODO: Increment this by days
+    value["COMMITDATE"] = odate
     ctx.put(value)
 
 
@@ -101,7 +101,7 @@ async def new_order_txn(ctx: StatefulFunction, entrypoint_key, params: dict):
     ctx.call_remote_async(
         'supplier_idx',
         'get_supplier_id',
-        params['SN']
+        params['SN'],
         (ctx.key, )
     )
     ctx.call_remote_async(

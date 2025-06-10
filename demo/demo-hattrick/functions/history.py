@@ -16,3 +16,4 @@ AMOUNT
 @history_operator.register
 async def register_payment(ctx: StatefulFunction, amount):
     ctx.put({"AMOUNT": amount})
+    return ctx.key, amount

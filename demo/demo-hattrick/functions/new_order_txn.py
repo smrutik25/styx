@@ -24,19 +24,20 @@ async def receive_part_extended_price(ctx: StatefulFunction, extended_price):
                 (txn_metadata["TP"],)
             )
     ctx.put(txn_metadata)
+    return ctx.key, txn_metadata["TP"]
 
 
 @new_order_txn_operator.register
 async def new_order_txn(ctx: StatefulFunction, params: dict):
     order_key = params['OK']
-    line_numbers = params["LN"]  # This should contain the line numbers
+    line_numbers = list(params["LO"].keys())
     txn_metadata = {
-        "OK": order_key, # order key
-        "LN": line_numbers, # line number list
-        "RR": 0, # replies received
-        "TP": 0 # total price
+        "OK": order_key,
+        "LN": line_numbers,
+        "RR": 0,
+        "TP": 0
     }
-    order_params = {'OD': params['OD'], 'SP': params['SP']}
+    order_params = {'OD': params['OD'], 'CN': params['CN']}
     # Call the line_order functions
     for line_number in line_numbers:
         line_order_key: str = f"{order_key}:{line_number}"

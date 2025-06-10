@@ -12,5 +12,5 @@ async def get_date(ctx: StatefulFunction, order_key):
         'line_order',
         'set_date',
         order_key,
-        (date_val,)
+        (date_val["DATE"],)
     )
