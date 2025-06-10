@@ -29,13 +29,14 @@ class QueryEngineHandler:
     async def stateflow_graph_to_tables(self, stateflow_graph: StateflowGraph) -> None:
         try:
             for operator_name, operator in iter(stateflow_graph):
-                self.qe_ddl.create_table(operator_name, operator.schema)
+                if operator.schema:
+                    self.qe_ddl.create_table(operator_name, operator.schema)
             created_tables = await self.qe_ddl.fetch_created_tables()
             logging.warning(f"Created tables: {", ".join(created_tables)}")
         except Exception as e:
             logging.error(f"Error creating tables: {e}")
 
-    async def deserialized_data_to_df(self, snapshot_data: dict[str, dict]) -> dict[str, pd.DataFrame]:
+    async def deserialized_data_to_df(self, snapshot_data: dict[str, dict]) -> dict[str, pd.DataFrame] | None:
         indexes = self.qe_ddl.table_indexes
         tables = self.qe_ddl.tables
         df_data = {}
@@ -44,26 +45,32 @@ class QueryEngineHandler:
             pass
         for table_name in tables.keys():
             data = snapshot_data[table_name]
-            first_value = next(iter(data.values()))
-            if isinstance(first_value, dict):
-                df = pd.DataFrame.from_dict(data, orient="index")
-                df.index = df.index.set_names(indexes[table_name])
-                df = df.reset_index()
+            logging.warning(f"Table: {table_name}, snapshot data size: {len(data)}")
+            if not len(data):
+                df_data[table_name] = pd.DataFrame(list(data.items()), columns=self.qe_ddl.tables[table_name]["columns"])
             else:
-                # TODO: see if this is correct and covers all use cases (need to handle multiple pk case)
-                df = pd.DataFrame(list(data.items()), columns=self.qe_ddl.tables[table_name]["columns"])
-            df_data[table_name] = df
+                first_value = next(iter(data.values()))
+                if isinstance(first_value, dict):
+                    df = pd.DataFrame.from_dict(data, orient="index")
+                    df.index = df.index.set_names(indexes[table_name])
+                    df = df.reset_index()
+                else:
+                    # TODO: see if this is correct and covers all use cases (need to handle multiple pk case)
+                    df = pd.DataFrame(list(data.items()), columns=self.qe_ddl.tables[table_name]["columns"])
+                df_data[table_name] = df
         return df_data
 
     async def load_snapshots(self, snapshot_id: str) -> None:
         minio_client = MinioReader(self.minio_client, snapshot_id)
-        await minio_client.identify_minio_delta()
+        operator_list = self.qe_ddl.operators
+        await minio_client.identify_minio_delta(operator_list)
         snapshot_data = {}
         for operator in self.qe_ddl.operators:
             snapshot_data[operator] = await minio_client.deserialize_snapshots(operator)
         df_data = await self.deserialized_data_to_df(snapshot_data)
         tables = self.qe_ddl.tables
-        self.qe_readwrite.write_to_table(df_data, tables)
+        if df_data:
+            self.qe_readwrite.write_to_table(df_data, tables)
 
     async def get_query_result(self, query: str):
         # TODO: User can define format of read output

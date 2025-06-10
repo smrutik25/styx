@@ -17,6 +17,45 @@ PHONE
 MKTSEGMENT
 PAYMENTCNT
 """
+customer_operator.set_analytical_schema([
+    {
+        "column_name": "CUSTKEY",
+        "data_type": "BIGINT",
+        "primary_key": True
+    },
+    {
+        "column_name": "NAME",
+        "data_type": "VARCHAR"
+    },
+    {
+        "column_name": "ADDRESS",
+        "data_type": "VARCHAR"
+    },
+    {
+        "column_name": "CITY",
+        "data_type": "VARCHAR"
+    },
+    {
+        "column_name": "NATION",
+        "data_type": "VARCHAR"
+    },
+    {
+        "column_name": "REGION",
+        "data_type": "VARCHAR"
+    },
+    {
+        "column_name": "PHONE",
+        "data_type": "VARCHAR"
+    },
+    {
+        "column_name": "MKTSEGMENT",
+        "data_type": "VARCHAR"
+    },
+    {
+        "column_name": "PAYMENTCNT",
+        "data_type": "INT"
+    }
+])
 
 
 @customer_operator.register

@@ -3,19 +3,42 @@ from styx.common.stateful_function import StatefulFunction
 
 
 supplier_operator = Operator('supplier')
-"""
-Attributes
-----------
-SUPPKEY -> ctx.key
-ctx.value
-NAME
-ADDRESS
-CITY
-NATION
-REGION
-PHONE
-YTD
-"""
+
+supplier_operator.set_analytical_schema([
+    {
+        "column_name": "SUPKEY",
+        "data_type": "BIGINT",
+        "primary_key": True
+    },
+    {
+        "column_name": "NAME",
+        "data_type": "VARCHAR"
+    },
+    {
+        "column_name": "ADDRESS",
+        "data_type": "VARCHAR"
+    },
+    {
+        "column_name": "CITY",
+        "data_type": "VARCHAR"
+    },
+    {
+        "column_name": "NATION",
+        "data_type": "VARCHAR"
+    },
+    {
+        "column_name": "REGION",
+        "data_type": "VARCHAR"
+    },
+    {
+        "column_name": "PHONE",
+        "data_type": "VARCHAR"
+    },
+    {
+        "column_name": "YTD",
+        "data_type": "FLOAT"
+    },
+])
 
 
 @supplier_operator.register

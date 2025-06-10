@@ -300,6 +300,10 @@ def benchmark_runner(proc_num) -> dict[bytes, dict]:
         sec_start = timer()
         for i in range(messages_per_second):
             if i % (messages_per_second // sleeps_per_second) == 0:
+                styx.send_query("SELECT COUNT(*) FROM CUSTOMER;")
+                styx.send_query("SELECT COUNT(*) FROM PART;")
+                styx.send_query("SELECT COUNT(*) FROM DATE;")
+                styx.send_query("SELECT COUNT(*) FROM SUPPLIER;")
                 time.sleep(sleep_time)
             operator, key, func_name, params = next(hattrick_generator)
             future = styx.send_event(operator=operator,

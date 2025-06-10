@@ -14,13 +14,14 @@ class MinioReader:
         self.snapshot_id: str = snapshot_id
         self.operator_snapshots: dict = defaultdict(list)
 
-    async def identify_minio_delta(self):
+    async def identify_minio_delta(self, operator_list):
         prefix = "data/"
         pattern = re.compile(rf"^{re.escape(prefix)}.*/{self.snapshot_id}\.bin$")
         for obj in self.minio_client.list_objects(SNAPSHOT_BUCKET_NAME, prefix=prefix, recursive=True):
             if pattern.match(obj.object_name):
                 operator_name = obj.object_name.split("/")[1]
-                self.operator_snapshots[operator_name].append(obj.object_name)
+                if operator_name in operator_list:
+                    self.operator_snapshots[operator_name].append(obj.object_name)
         logging.warning(f"Operator snapshots for snapshot_id {self.snapshot_id}: {dict(self.operator_snapshots)}")
 
     async def deserialize_snapshots(self, operator):

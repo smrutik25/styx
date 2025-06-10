@@ -3,21 +3,50 @@ from styx.common.stateful_function import StatefulFunction
 
 
 part_operator = Operator('part')
-"""
-Attributes
--------------
-PARTKEY -> ctx.key
-ctx.get()
-NAME
-MFGR
-CATEGORY
-BRAND1
-COLOR
-TYPE
-SIZE
-CONTAINER
-PRICE
-"""
+
+part_operator.set_analytical_schema([
+    {
+        "column_name": "PARTKEY",
+        "data_type": "BIGINT",
+        "primary_key": True
+    },
+    {
+        "column_name": "NAME",
+        "data_type": "VARCHAR"
+    },
+    {
+        "column_name": "MFGR",
+        "data_type": "VARCHAR"
+    },
+    {
+        "column_name": "CATEGORY",
+        "data_type": "VARCHAR"
+    },
+    {
+        "column_name": "BRAND1",
+        "data_type": "VARCHAR"
+    },
+    {
+        "column_name": "COLOR",
+        "data_type": "VARCHAR"
+    },
+    {
+        "column_name": "TYPE",
+        "data_type": "VARCHAR"
+    },
+    {
+        "column_name": "SIZE",
+        "data_type": "INT"
+    },
+    {
+        "column_name": "CONTAINER",
+        "data_type": "VARCHAR"
+    },
+    {
+        "column_name": "PRICE",
+        "data_type": "FLOAT"
+    }
+])
 
 
 @part_operator.register
