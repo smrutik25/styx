@@ -1,6 +1,7 @@
 from .customer import customer_operator
 from .customer_idx import customer_idx_operator
 from .date import date_operator
+from .date_idx import date_idx_operator
 from .history import history_operator
 from .line_order import line_order_operator
 from .new_order_txn import new_order_txn_operator

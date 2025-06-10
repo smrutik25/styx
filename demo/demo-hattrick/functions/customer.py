@@ -3,20 +3,6 @@ from styx.common.stateful_function import StatefulFunction
 
 
 customer_operator = Operator('customer')
-"""
-Attributes
-----------
-CUSTKEY -> ctx.key
-ctx.value()
-NAME
-ADDRESS
-CITY
-NATION
-REGION
-PHONE
-MKTSEGMENT
-PAYMENTCNT
-"""
 customer_operator.set_analytical_schema([
     {
         "column_name": "CUSTKEY",

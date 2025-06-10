@@ -3,28 +3,74 @@ from styx.common.stateful_function import StatefulFunction
 
 
 line_order_operator = Operator('line_order')
-"""
-Attributes
-----------
-ORDERKEY <- ctx.key
-LINENUMBER <- ctx.key
-ctx.get()
-CUSTKEY
-PARTKEY
-SUPKEY
-ORDERDATE
-ORDPRIORITY
-SHIPPRIORITY
-QUANTITY
-EXTENDEDPRICE
-ORDTOTALPRICE
-DISCOUNT
-REVENUE
-SUPPLYCOST
-TAX
-COMMITDATE
-SHIPMODE
-"""
+# line_order_operator.set_analytical_schema([
+#     {
+#         "column_name": "ORDERKEY",
+#         "data_type": "BIGINT",
+#         "primary_key": True
+#     },
+#     {
+#         "column_name": "LINENUMBER",
+#         "data_type": "TINYINT",
+#         "primary_key": True
+#     },
+#     {
+#         "column_name": "CUSTKEY",
+#         "data_type": "BIGINT"
+#     },
+#     {
+#         "column_name": "PARTKEY",
+#         "data_type": "BIGINT"
+#     },
+#     {
+#         "column_name": "SUPKEY",
+#         "data_type": "BIGINT"
+#     },
+#     {
+#         "column_name": "ORDERDATE",
+#         "data_type": "INT"
+#     },
+#     {
+#         "column_name": "ORDPRIORITY",
+#         "data_type": "VARCHAR"
+#     },
+#     {
+#         "column_name": "SHIPPRIORITY",
+#         "data_type": "VARCHAR"
+#     },
+#     {
+#         "column_name": "QUANTITY",
+#         "data_type": "INT"
+#     },
+#     {
+#         "column_name": "EXTENDEDPRICE",
+#         "data_type": "FLOAT"
+#     },
+#     {
+#         "column_name": "DISCOUNT",
+#         "data_type": "FLOAT"
+#     },
+#     {
+#         "column_name": "REVENUE",
+#         "data_type": "FLOAT"
+#     },
+#     {
+#         "column_name": "SUPPLYCOST",
+#         "data_type": "FLOAT"
+#     },
+#     {
+#         "column_name": "TAX",
+#         "data_type": "FLOAT"
+#     },
+#     {
+#         "column_name": "COMMITDATE",
+#         "data_type": "INT"
+#     },
+#     {
+#         "column_name": "SHIPMODE",
+#         "data_type": "VARCHAR"
+#     }
+# ])
 
 
 @line_order_operator.register
@@ -93,7 +139,7 @@ async def new_order_txn(ctx: StatefulFunction, entrypoint_key, params: dict):
         (ctx.key, )
     )
     ctx.call_remote_async(
-        'date',
+        'date_idx',
         'get_date',
         params['OD'],
         (ctx.key,)

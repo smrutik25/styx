@@ -3,13 +3,6 @@ from styx.common.stateful_function import StatefulFunction
 
 
 supplier_idx_operator = Operator('supplier_idx')
-"""
-Attributes
-----------
-NAME -> ctx.key
-ctx.value()
-SUPKEY
-"""
 
 
 @supplier_idx_operator.register

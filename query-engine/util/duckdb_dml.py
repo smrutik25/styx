@@ -25,9 +25,7 @@ class QueryEngineReadWrite:
                 query = self._generate_query(table_name, tables)
                 df = data[table_name]
                 write_cursor.execute(query)
-                logging.warning(f"Upserted in table {table_name}")
             write_cursor.commit()
-            logging.warning(f"Upsert committed")
         except Exception as e:
             logging.error(f"Error in duckdb upsert: {e}")
         finally:

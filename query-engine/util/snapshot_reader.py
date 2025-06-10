@@ -1,4 +1,3 @@
-import logging
 import os
 import re
 from collections import defaultdict
@@ -22,7 +21,6 @@ class MinioReader:
                 operator_name = obj.object_name.split("/")[1]
                 if operator_name in operator_list:
                     self.operator_snapshots[operator_name].append(obj.object_name)
-        logging.warning(f"Operator snapshots for snapshot_id {self.snapshot_id}: {dict(self.operator_snapshots)}")
 
     async def deserialize_snapshots(self, operator):
         deserialized_objects = {}

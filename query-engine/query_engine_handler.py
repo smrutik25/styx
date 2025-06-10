@@ -36,6 +36,12 @@ class QueryEngineHandler:
         except Exception as e:
             logging.error(f"Error creating tables: {e}")
 
+    @staticmethod
+    async def split_index(df: pd.DataFrame, composite_key: list):
+        df[composite_key] = df['index'].str.split(':', expand=True)
+        df = df.drop(columns=['index'])
+        return df
+
     async def deserialized_data_to_df(self, snapshot_data: dict[str, dict]) -> dict[str, pd.DataFrame] | None:
         indexes = self.qe_ddl.table_indexes
         tables = self.qe_ddl.tables
@@ -45,18 +51,20 @@ class QueryEngineHandler:
             pass
         for table_name in tables.keys():
             data = snapshot_data[table_name]
-            logging.warning(f"Table: {table_name}, snapshot data size: {len(data)}")
+            table_index = indexes[table_name]
+            logging.warning(f"Table: {table_name}, rows to upsert: {len(data)}")
             if not len(data):
                 df_data[table_name] = pd.DataFrame(list(data.items()), columns=self.qe_ddl.tables[table_name]["columns"])
             else:
                 first_value = next(iter(data.values()))
                 if isinstance(first_value, dict):
-                    df = pd.DataFrame.from_dict(data, orient="index")
-                    df.index = df.index.set_names(indexes[table_name])
-                    df = df.reset_index()
+                    df = pd.DataFrame.from_dict(data, orient="index").reset_index()
                 else:
-                    # TODO: see if this is correct and covers all use cases (need to handle multiple pk case)
                     df = pd.DataFrame(list(data.items()), columns=self.qe_ddl.tables[table_name]["columns"])
+                if len(table_index) > 1:
+                    df = await self.split_index(df, table_index)
+                else:
+                    df = df.rename(columns={'index': table_index[0]})
                 df_data[table_name] = df
         return df_data
 

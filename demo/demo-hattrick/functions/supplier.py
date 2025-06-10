@@ -3,7 +3,6 @@ from styx.common.stateful_function import StatefulFunction
 
 
 supplier_operator = Operator('supplier')
-
 supplier_operator.set_analytical_schema([
     {
         "column_name": "SUPKEY",

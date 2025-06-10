@@ -51,12 +51,13 @@ class QueryEngineService(object):
                 message = self.networking.decode_message(data)
                 logging.warning(f"Query engine received execution graph")
                 await self.qe_handler.stateflow_graph_to_tables(message[0])
-                # Loading init data
+                # Loading init data (handle chunking for large files)
                 await self.qe_handler.load_snapshots("0")
             case MessageType.SnapID:
                 snapshot_id = self.networking.decode_message(data)[0]
                 logging.warning(f"Query engine received snapshot: {snapshot_id}")
                 await self.qe_handler.load_snapshots(snapshot_id)
+                logging.warning(f"Snapshot {snapshot_id} committed")
 
     async def start_tcp_service(self):
         async def request_handler(reader: StreamReader, writer: StreamWriter):

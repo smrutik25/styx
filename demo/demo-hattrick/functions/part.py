@@ -3,7 +3,6 @@ from styx.common.stateful_function import StatefulFunction
 
 
 part_operator = Operator('part')
-
 part_operator.set_analytical_schema([
     {
         "column_name": "PARTKEY",

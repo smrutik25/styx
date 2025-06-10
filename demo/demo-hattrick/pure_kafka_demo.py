@@ -21,9 +21,9 @@ import calculate_metrics
 from styx.common.local_state_backends import LocalStateBackend
 from styx.common.stateflow_graph import StateflowGraph
 from styx.client import SyncStyxClient
-from functions import (customer_operator, customer_idx_operator, date_operator, history_operator, line_order_operator,
-                       new_order_txn_operator, part_operator, payment_txn_operator, supplier_operator,
-                       supplier_idx_operator)
+from functions import (customer_operator, customer_idx_operator, date_operator, date_idx_operator, history_operator,
+                       line_order_operator, new_order_txn_operator, part_operator, payment_txn_operator,
+                       supplier_operator, supplier_idx_operator)
 
 random.seed(42)
 
@@ -47,7 +47,8 @@ last_order_key = lo_size + 1
 
 start_date = datetime.strptime("19920101", '%Y%m%d')
 end_date = datetime.strptime("19981231", '%Y%m%d')
-delta_days = (end_date - start_date).days
+delta_days = (end_date - start_date).days + 1
+date_list = [(start_date + timedelta(days=x)).strftime('%B %-d, %Y') for x in range(delta_days)]
 
 data_file_path = "HATtrick/datagen"
 script_path = os.path.dirname(os.path.realpath(__file__))
@@ -57,6 +58,7 @@ g = StateflowGraph('hattrick_benchmark', operator_state_backend=LocalStateBacken
 customer_operator.set_n_partitions(N_PARTITIONS)
 customer_idx_operator.set_n_partitions(N_PARTITIONS)
 date_operator.set_n_partitions(N_PARTITIONS)
+date_idx_operator.set_n_partitions(N_PARTITIONS)
 history_operator.set_n_partitions(N_PARTITIONS)
 line_order_operator.set_n_partitions(N_PARTITIONS)
 new_order_txn_operator.set_n_partitions(N_PARTITIONS)
@@ -65,8 +67,8 @@ payment_txn_operator.set_n_partitions(N_PARTITIONS)
 supplier_operator.set_n_partitions(N_PARTITIONS)
 supplier_idx_operator.set_n_partitions(N_PARTITIONS)
 
-g.add_operators(customer_operator, customer_idx_operator, date_operator, history_operator,
-                line_order_operator, new_order_txn_operator, part_operator, payment_txn_operator,
+g.add_operators(customer_operator, customer_idx_operator, date_operator, date_idx_operator,
+                history_operator, line_order_operator, new_order_txn_operator, part_operator, payment_txn_operator,
                 supplier_operator, supplier_idx_operator)
 
 
@@ -140,7 +142,7 @@ def populate_line_order(styx: SyncStyxClient):
                 'CUSTKEY': int(line[2]),
                 'PARTKEY': int(line[3]),
                 'SUPKEY': int(line[4]),
-                'ORDERDATE': line[5],
+                'ORDERDATE': int(line[5]),
                 'ORDPRIORITY': line[6],
                 'SHIPPRIORITY': line[7],
                 'QUANTITY': int(line[8]),
@@ -185,9 +187,11 @@ def populate_part(styx: SyncStyxClient):
 def populate_date(styx: SyncStyxClient):
     with open(os.path.join(script_path, f"{data_file_path}/date.bin"), "r") as f:
         reader = csv.reader(f, delimiter='!')
-        partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
+        date_partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
+        date_idx_partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
         for _, line in tqdm(enumerate(reader), desc="Populating Date Data"):
             date_key = int(line[0])
+            date_idx_key = line[1]
             partition: int = styx.get_operator_partition(date_key, date_operator)
             date_data = {
                 'DATE': line[1],
@@ -207,10 +211,14 @@ def populate_date(styx: SyncStyxClient):
                 'HOLIDAYFL': bool(line[15]),
                 'WEEKDAYFL': bool(line[16]),
             }
-            partitions[partition][date_key] = date_data
-        for partition, partition_data in partitions.items():
+            date_partitions[partition][date_key] = date_data
+            date_idx_partitions[partition][date_idx_key] = date_key
+        for partition, partition_data in date_partitions.items():
             print(f"Populating {date_operator.name}:{partition}...")
             styx.init_data(date_operator, partition, partition_data)
+        for partition, partition_data in date_idx_partitions.items():
+            print(f"Populating {date_idx_operator.name}:{partition}...")
+            styx.init_data(date_idx_operator, partition, partition_data)
 
 
 def submit_graph(styx: SyncStyxClient):
@@ -236,8 +244,6 @@ def get_new_line_order_transaction(front_end_key):
     line_order_n = random.randint(1, 7)
     supplier_prefix = "Supplier#"
     customer_name = f"Customer#{str(random.randint(1, cust_size)).zfill(9)}"
-    date_range = random.randint(0, delta_days)
-    order_date = (start_date + timedelta(days=date_range)).strftime("%Y%m%d")
     line_orders = {}
     for i in range(line_order_n):
         part = random.randint(1, part_size)
@@ -254,7 +260,7 @@ def get_new_line_order_transaction(front_end_key):
         }
     params: dict[str, Any] = {
         "OK": front_end_key,
-        "OD": int(order_date),
+        "OD": date_list[front_end_key % delta_days],
         "CN": customer_name,
         "LO": line_orders
         }
@@ -300,10 +306,13 @@ def benchmark_runner(proc_num) -> dict[bytes, dict]:
         sec_start = timer()
         for i in range(messages_per_second):
             if i % (messages_per_second // sleeps_per_second) == 0:
-                styx.send_query("SELECT COUNT(*) FROM CUSTOMER;")
-                styx.send_query("SELECT COUNT(*) FROM PART;")
-                styx.send_query("SELECT COUNT(*) FROM DATE;")
-                styx.send_query("SELECT COUNT(*) FROM SUPPLIER;")
+                if i % 50 == 0:
+                    styx.send_query("SELECT COUNT(*) FROM CUSTOMER;")
+                    styx.send_query("SELECT COUNT(*) FROM PART;")
+                    styx.send_query("SELECT COUNT(*) FROM DATE;")
+                    styx.send_query("SELECT COUNT(*) FROM SUPPLIER;")
+                    styx.send_query("SELECT COUNT(*) FROM HISTORY;")
+                    # styx.send_query("SELECT COUNT(*) FROM LINE_ORDER;")
                 time.sleep(sleep_time)
             operator, key, func_name, params = next(hattrick_generator)
             future = styx.send_event(operator=operator,
@@ -332,8 +341,9 @@ def main():
     ssb_init(styx_client)
     del styx_client
     print('Data populated waiting for 1 minute')
-    # 1 min so that the init is surely done
+    # 5 min so that the init is surely done (snapshot buckets and duckdb)
     time.sleep(60)
+    # time.sleep(300 * (SF % 5))
 
     with Pool(threads) as p:
         results = p.map(benchmark_runner, range(threads))
