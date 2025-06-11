@@ -43,16 +43,11 @@ SF = int(sys.argv[7])
 query_threads = int(sys.argv[8])
 queries_per_second = int(sys.argv[9])
 num_queries = len(analytical_queries)
-# cust_size = 30000 * SF
-# supp_size = 2000 * SF
-# part_size = 200000 * math.floor(1 + math.log2(SF))
-# lo_size = 1500000 * SF
-# last_order_key = lo_size + 1
-
-cust_size = 300 * SF
-supp_size = 20 * SF
-part_size = 200 * math.floor(1 + math.log2(SF))
-lo_size = 1500 * SF
+q_sleeps_per_second = 10
+cust_size = 30000 * SF
+supp_size = 2000 * SF
+part_size = 200000 * math.floor(1 + math.log2(SF))
+lo_size = 1500000 * SF
 last_order_key = lo_size + 1
 
 start_date = datetime.strptime("19920101", '%Y%m%d')
@@ -60,7 +55,7 @@ end_date = datetime.strptime("19981231", '%Y%m%d')
 delta_days = (end_date - start_date).days + 1
 date_list = [(start_date + timedelta(days=x)).strftime('%B %-d, %Y') for x in range(delta_days)]
 
-data_file_path = "HATtrick/datagen_new"
+data_file_path = "HATtrick/datagen"
 script_path = os.path.dirname(os.path.realpath(__file__))
 
 # Create Stateflow Graph
@@ -357,7 +352,7 @@ def analytical_benchmark_runner(proc_num) -> (dict[bytes, dict], dict[bytes, dic
     for cur_sec in range(seconds):
         sec_start = timer()
         for i in range(queries_per_second):
-            if i % (queries_per_second // sleeps_per_second) == 0:
+            if i % (queries_per_second // q_sleeps_per_second) == 0:
                 time.sleep(sleep_time)
             query_id, query = next(hattrick_generator)
             future = styx.send_query(query)
@@ -392,10 +387,9 @@ def main():
     styx_client = SyncStyxClient(STYX_HOST, STYX_PORT, kafka_url=KAFKA_URL, minio=minio)
     ssb_init(styx_client)
     del styx_client
-    print('Data populated waiting for 1 minute')
+    print(f'Data populated waiting for {(180 * (SF % 2)) // 60} min')
     # 5 min so that the init is surely done (snapshot buckets and duckdb)
-    time.sleep(20)
-    # time.sleep(300 * (SF % 5))
+    time.sleep(180 * (SF % 2))
 
     with ProcessPoolExecutor(max_workers=2) as main_executor:
         txn_future = main_executor.submit(transactional_thread_pool)

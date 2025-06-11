@@ -20,6 +20,7 @@ from query_engine_handler import QueryEngineHandler
 KAFKA_URL: str = os.getenv('KAFKA_URL', "localhost:9092")
 QUERY_ENGINE_PORT: int = int(os.getenv('QUERY_ENGINE_PORT', 7000))
 QUERY_ENGINE_TOPIC: str = "styx-query-engine"
+MAX_CONCURRENCY: int = 50
 
 
 class QueryEngineService(object):
@@ -32,6 +33,7 @@ class QueryEngineService(object):
         self.kafka_consumer_task: asyncio.Task = ...
         self.producer_ready = asyncio.Event()
         self.kafka_ready = asyncio.Event()
+        self.duckdb_ready = asyncio.Event()
 
         self.networking = NetworkingManager(QUERY_ENGINE_PORT, mode=MessagingMode.QE_COR)
         self.qe_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -44,6 +46,9 @@ class QueryEngineService(object):
         self.qe_socket.setblocking(False)
         self.qe_handler = QueryEngineHandler()
 
+        self.query_tasks = set()
+        self.semaphore = asyncio.Semaphore(MAX_CONCURRENCY)
+
     async def query_engine_controller(self, data: bytes):
         message_type: int = self.networking.get_msg_type(data)
         match message_type:
@@ -53,6 +58,7 @@ class QueryEngineService(object):
                 await self.qe_handler.stateflow_graph_to_tables(message[0])
                 # Loading init data (handle chunking for large files)
                 await self.qe_handler.load_snapshots("0")
+                self.duckdb_ready.set()
             case MessageType.SnapID:
                 snapshot_id = self.networking.decode_message(data)[0]
                 logging.warning(f"Query engine received snapshot: {snapshot_id}")
@@ -81,7 +87,7 @@ class QueryEngineService(object):
             logging.warning("Serving TCP server")
             await server.serve_forever()
 
-    async def start_kafka_producer(self):
+    async def _kafka_producer_start(self):
         self.kafka_query_result_producer = AIOKafkaProducer(bootstrap_servers=[KAFKA_URL],
                                                             client_id="QueryEngineProducer",
                                                             value_serializer=msgpack_serialization,
@@ -93,6 +99,9 @@ class QueryEngineService(object):
                 await asyncio.sleep(1)
                 continue
             break
+
+    async def kafka_producer_create_topics(self):
+        await self._kafka_producer_start()
         egress_topic = f"{QUERY_ENGINE_TOPIC}--OUT"
         topic = None
         while topic is None:
@@ -102,7 +111,7 @@ class QueryEngineService(object):
         logging.warning(f"Topic {egress_topic} created for kafka producer init")
         self.producer_ready.set()
 
-    async def start_kafka_consumer(self):
+    async def _kafka_producer_ready(self):
         while True:
             try:
                 await asyncio.wait_for(self.producer_ready.wait(), timeout=1.0)
@@ -112,6 +121,9 @@ class QueryEngineService(object):
         self.kafka_query_consumer = AIOKafkaConsumer(auto_offset_reset='earliest',
                                                      bootstrap_servers=[KAFKA_URL],
                                                      client_id="QueryEngineConsumer")
+
+    async def _kafka_consumer_start(self):
+        await self._kafka_producer_ready()
         while True:
             try:
                 await self.kafka_query_consumer.start()
@@ -119,6 +131,9 @@ class QueryEngineService(object):
                 await asyncio.sleep(1)
                 continue
             break
+
+    async def kafka_consumer_subscribe_topic(self):
+        await self._kafka_consumer_start()
         ingress_topic = QUERY_ENGINE_TOPIC
         topics = []
         while ingress_topic not in topics:
@@ -131,18 +146,7 @@ class QueryEngineService(object):
         logging.warning(f"Query engine subscribed to {ingress_topic} for consuming messages")
         self.kafka_ready.set()
 
-    async def handle_client_query(self, kafka_message):
-        try:
-            msg = msgpack_deserialization(kafka_message.value[2:])
-            logging.info(f"Received query {msg} from client")
-            res = await self.qe_handler.get_query_result(msg[0])
-            await self.kafka_query_result_producer.send_and_wait(f"{QUERY_ENGINE_TOPIC}--OUT",
-                                                                 key=kafka_message.key,
-                                                                 value=res)
-        except Exception as e:
-            logging.warning(f"Error decoding query: {e}")
-
-    async def consume_queries(self):
+    async def _wait_for_kafka_ready(self):
         while True:
             try:
                 await asyncio.wait_for(self.kafka_ready.wait(), timeout=1.0)
@@ -150,11 +154,38 @@ class QueryEngineService(object):
                 break
             except asyncio.TimeoutError:
                 await asyncio.sleep(5)
+
+    async def _wait_for_duckdb_ready(self):
+        while True:
+            try:
+                await asyncio.wait_for(self.duckdb_ready.wait(), timeout=1.0)
+                logging.warning("Kafka is ready to consume client queries.")
+                break
+            except asyncio.TimeoutError:
+                await asyncio.sleep(5)
+
+    async def handle_client_query(self, kafka_message):
+        async with self.semaphore:
+            try:
+                msg = msgpack_deserialization(kafka_message.value[2:])
+                logging.info(f"Received query {msg} from client")
+                res = await self.qe_handler.get_query_result(msg[0])
+                await self.kafka_query_result_producer.send_and_wait(f"{QUERY_ENGINE_TOPIC}--OUT",
+                                                                     key=kafka_message.key,
+                                                                     value=res)
+            except Exception as e:
+                logging.warning(f"Error decoding query: {e}")
+
+    async def consume_queries(self):
+        await self._wait_for_kafka_ready()
+        await self._wait_for_duckdb_ready()
         try:
             while True:
                 try:
                     msg = await asyncio.wait_for(self.kafka_query_consumer.getone(), timeout=0.5)
-                    await self.handle_client_query(msg)
+                    task = asyncio.create_task(self.handle_client_query(msg))
+                    self.query_tasks.add(task)
+                    task.add_done_callback(self.query_tasks.discard)
                 except asyncio.TimeoutError:
                     await asyncio.sleep(1)
                 except Exception as e:
@@ -163,8 +194,8 @@ class QueryEngineService(object):
             await self.kafka_query_consumer.stop()
 
     async def main(self):
-        self.kafka_producer_init_task = asyncio.create_task(self.start_kafka_producer())
-        self.kafka_consumer_init_task = asyncio.create_task(self.start_kafka_consumer())
+        self.kafka_producer_init_task = asyncio.create_task(self.kafka_producer_create_topics())
+        self.kafka_consumer_init_task = asyncio.create_task(self.kafka_consumer_subscribe_topic())
         self.kafka_consumer_task = asyncio.create_task(self.consume_queries())
         await self.start_tcp_service()
 

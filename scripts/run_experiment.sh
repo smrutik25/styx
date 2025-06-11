@@ -17,6 +17,7 @@ query_rate=${13:-0}
 bash scripts/start_styx_cluster.sh "$n_part" "$epoch_size" "$n_part" "$query_engine"
 
 sleep 10
+bash scripts/stats_collect_docker.sh > monitor.log 2>&1 &
 
 if [[ $workload_name == "ycsbt" ]]; then
     # YCSB-T

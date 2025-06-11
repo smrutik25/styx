@@ -8,7 +8,7 @@ from util.duckdb_ddl import QueryEngineTables
 from util.snapshot_reader import MinioReader
 from util.duckdb_dml import QueryEngineReadWrite
 
-DATABASE_FILE_PATH: str = os.getenv('DATABASE_FILE_PATH', 'query-engine/data/duckdb_database.db')
+DATABASE_FILE_PATH: str = os.getenv('DATABASE_FILE_PATH', 'data/duckdb_database.db')
 MINIO_URL: str = f"{os.environ['MINIO_HOST']}:{os.environ['MINIO_PORT']}"
 MINIO_ACCESS_KEY: str = os.environ['MINIO_ROOT_USER']
 MINIO_SECRET_KEY: str = os.environ['MINIO_ROOT_PASSWORD']
@@ -37,7 +37,7 @@ class QueryEngineHandler:
             logging.error(f"Error creating tables: {e}")
 
     @staticmethod
-    async def split_index(df: pd.DataFrame, composite_key: list):
+    async def _split_index(df: pd.DataFrame, composite_key: list):
         df[composite_key] = df['index'].str.split(':', expand=True)
         df = df.drop(columns=['index'])
         return df
@@ -62,7 +62,7 @@ class QueryEngineHandler:
                 else:
                     df = pd.DataFrame(list(data.items()), columns=self.qe_ddl.tables[table_name]["columns"])
                 if len(table_index) > 1:
-                    df = await self.split_index(df, table_index)
+                    df = await self._split_index(df, table_index)
                 else:
                     df = df.rename(columns={'index': table_index[0]})
                 df_data[table_name] = df

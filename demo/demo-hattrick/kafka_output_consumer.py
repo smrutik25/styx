@@ -54,7 +54,7 @@ async def consume(save_dir):
                 break
             for messages in data.values():
                 for msg in messages:
-                    query_records.append((msg.key, msg.value, msg.timestamp))
+                    query_records.append((msg.key, len(msg.value), msg.timestamp))
     finally:
         # Will leave consumer group; perform autocommit if enabled.
         await consumer.stop()
@@ -62,7 +62,7 @@ async def consume(save_dir):
                                   columns=['request_id', 'response', 'timestamp']).sort_values(by="timestamp").to_csv(f'{save_dir}/output.csv',
                                                                                                                       index=False)
         pd.DataFrame.from_records(query_records,
-                                  columns=['request_id', 'response', 'timestamp']).sort_values(by="timestamp").to_csv(
+                                  columns=['request_id', 'response_size', 'timestamp']).sort_values(by="timestamp").to_csv(
             f'{save_dir}/query_output.csv',
             index=False)
 
