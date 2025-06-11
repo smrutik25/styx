@@ -34,8 +34,6 @@ N_PARTITIONS = int(sys.argv[3])
 messages_per_second = int(sys.argv[4])
 sleeps_per_second = 100
 sleep_time = 0.0085
-q_sleeps_per_second = 2
-q_sleep_time = 0.1
 seconds = int(sys.argv[5])
 STYX_HOST: str = 'localhost'
 STYX_PORT: int = 8886
@@ -359,8 +357,8 @@ def analytical_benchmark_runner(proc_num) -> (dict[bytes, dict], dict[bytes, dic
     for cur_sec in range(seconds):
         sec_start = timer()
         for i in range(queries_per_second):
-            if i % (queries_per_second // q_sleeps_per_second) == 0:
-                time.sleep(q_sleep_time)
+            if i % (queries_per_second // sleeps_per_second) == 0:
+                time.sleep(sleep_time)
             query_id, query = next(hattrick_generator)
             future = styx.send_query(query)
             timestamp_futures[future.request_id] = {"q": f'{query_id}'}
@@ -417,7 +415,7 @@ def main():
     pd.DataFrame({"request_id": list(analytical_results.keys()),
                   "timestamp": [res["timestamp"] for res in analytical_results.values()],
                   "q": [res["q"] for res in analytical_results.values()]
-                  }).to_csv(f'{SAVE_DIR}/client_query_requests.csv',
+                  }).to_csv(f'{SAVE_DIR}/client_queries.csv',
                             index=False)
 
 
@@ -432,8 +430,10 @@ if __name__ == '__main__':
     calculate_metrics.main(
         SAVE_DIR,
         messages_per_second,
+        queries_per_second,
         warmup_seconds,
         txn_threads,
+        query_threads,
         SF
     )
 

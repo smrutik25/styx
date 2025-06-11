@@ -21,6 +21,7 @@ async def consume(save_dir):
     egress_topic_names: list[str] = g.get_egress_topic_names()
 
     records = []
+    query_records = []
     consumer = AIOKafkaConsumer(
         auto_offset_reset='earliest',
         value_deserializer=msgpack_deserialization,
@@ -35,18 +36,17 @@ async def consume(save_dir):
         print(f"Awaiting topics {egress_topic_names} to be created by the Styx coordinator, current topics: {topics}")
         await asyncio.sleep(5)
     print(f"Topics {egress_topic_names} has been created.")
-    consumer.subscribe(topics=egress_topic_names)
-    print(f"Consumer subscribed to topics {egress_topic_names}.")
     try:
-        # Consume messages
+        consumer.subscribe(topics=egress_topic_names)
+        print(f"Consumer subscribed to topics {egress_topic_names}.")
         while True:
             data = await consumer.getmany(timeout_ms=10_000)
             if not data:
                 break
             for messages in data.values():
                 for msg in messages:
-                    # print("consumed: ", msg.key, msg.value, msg.timestamp)
                     records.append((msg.key, msg.value, msg.timestamp))
+
         consumer.subscribe(topics=['styx-query-engine--OUT'])
         while True:
             data = await consumer.getmany(timeout_ms=1_000)
@@ -54,13 +54,17 @@ async def consume(save_dir):
                 break
             for messages in data.values():
                 for msg in messages:
-                    print(f"Query response: {msg.value}")
+                    query_records.append((msg.key, msg.value, msg.timestamp))
     finally:
         # Will leave consumer group; perform autocommit if enabled.
         await consumer.stop()
         pd.DataFrame.from_records(records,
                                   columns=['request_id', 'response', 'timestamp']).sort_values(by="timestamp").to_csv(f'{save_dir}/output.csv',
                                                                                                                       index=False)
+        pd.DataFrame.from_records(query_records,
+                                  columns=['request_id', 'response', 'timestamp']).sort_values(by="timestamp").to_csv(
+            f'{save_dir}/query_output.csv',
+            index=False)
 
 
 def main(save_dir=None):
