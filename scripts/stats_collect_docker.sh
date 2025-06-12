@@ -1,12 +1,23 @@
 #!/bin/bash
 
+scale_factor=$1
 
 COORDINATOR_CONTAINER="styx-coordinator-1"
 WORKER_CONTAINERS=$(docker ps --filter "name=worker" --format "{{.Names}}")
 QUERY_ENGINE_CONTAINER="styx-query-engine-1"
 
-INTERVAL=10
-DURATION=600
+if [ "$scale_factor" = "1" ]; then
+  INTERVAL=10
+  DURATION=600
+elif [ "$scale_factor" = "10" ]; then
+  INTERVAL=20
+  DURATION=1800
+else
+  echo "Invalid scale factor"
+  exit 1
+fi
+
+
 OUTFILE_COORDINATOR="stats_coordinator.csv"
 OUTFILE_WORKERS="stats_workers.csv"
 OUTFILE_QE="stats_query_engine.csv"

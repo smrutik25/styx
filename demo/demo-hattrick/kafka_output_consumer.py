@@ -5,6 +5,7 @@ from aiokafka import AIOKafkaConsumer
 import pandas as pd
 
 import uvloop
+import ast
 from styx.common.serialization import msgpack_deserialization
 
 from pure_kafka_demo import g
@@ -22,6 +23,7 @@ async def consume(save_dir):
 
     records = []
     query_records = []
+    freshness_records = []
     consumer = AIOKafkaConsumer(
         auto_offset_reset='earliest',
         value_deserializer=msgpack_deserialization,
@@ -48,23 +50,31 @@ async def consume(save_dir):
                     records.append((msg.key, msg.value, msg.timestamp))
 
         consumer.subscribe(topics=['styx-query-engine--OUT'])
+        freshness_queries = pd.read_csv(f"{save_dir}/freshness_queries.csv")["request_id"].tolist()
+        freshness_queries = [ast.literal_eval(s) for s in freshness_queries]
         while True:
             data = await consumer.getmany(timeout_ms=1_000)
             if not data:
                 break
             for messages in data.values():
                 for msg in messages:
-                    query_records.append((msg.key, len(msg.value), msg.timestamp))
+                    if msg.key in freshness_queries:
+                        freshness_records.append((msg.key, msg.value, msg.timestamp))
+                    else:
+                        query_records.append((msg.key, len(msg.value), msg.timestamp))
     finally:
         # Will leave consumer group; perform autocommit if enabled.
         await consumer.stop()
         pd.DataFrame.from_records(records,
-                                  columns=['request_id', 'response', 'timestamp']).sort_values(by="timestamp").to_csv(f'{save_dir}/output.csv',
-                                                                                                                      index=False)
+                                  columns=['request_id', 'response', 'timestamp']).sort_values(by="timestamp").to_csv(
+            f'{save_dir}/output.csv', index=False)
         pd.DataFrame.from_records(query_records,
                                   columns=['request_id', 'response_size', 'timestamp']).sort_values(by="timestamp").to_csv(
-            f'{save_dir}/query_output.csv',
-            index=False)
+            f'{save_dir}/query_output.csv', index=False)
+
+        pd.DataFrame.from_records(freshness_records,
+                                  columns=['request_id', 'response', 'timestamp']).sort_values(by="timestamp").to_csv(
+            f'{save_dir}/freshness_output.csv', index=False)
 
 
 def main(save_dir=None):

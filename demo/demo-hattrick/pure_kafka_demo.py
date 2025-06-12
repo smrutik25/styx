@@ -1,4 +1,3 @@
-import csv
 import multiprocessing
 import os
 import math
@@ -8,7 +7,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from minio import Minio
-from tqdm import tqdm
+
 
 from timeit import default_timer as timer
 import time
@@ -17,14 +16,16 @@ from concurrent.futures import ProcessPoolExecutor
 import pandas as pd
 import kafka_output_consumer
 import calculate_metrics
+import init_data
 
+from styx.client import SyncStyxClient
+from analytical_queries import analytical_queries
 from styx.common.local_state_backends import LocalStateBackend
 from styx.common.stateflow_graph import StateflowGraph
-from styx.client import SyncStyxClient
 from functions import (customer_operator, customer_idx_operator, date_operator, date_idx_operator, history_operator,
                        line_order_operator, new_order_txn_operator, part_operator, payment_txn_operator,
                        supplier_operator, supplier_idx_operator)
-from analytical_queries import analytical_queries
+
 
 random.seed(42)
 
@@ -42,6 +43,7 @@ warmup_seconds = int(sys.argv[6])
 SF = int(sys.argv[7])
 query_threads = int(sys.argv[8])
 queries_per_second = int(sys.argv[9])
+num_freshness_queries = 20
 num_queries = len(analytical_queries)
 q_sleeps_per_second = 10
 cust_size = 30000 * SF
@@ -55,10 +57,15 @@ end_date = datetime.strptime("19981231", '%Y%m%d')
 delta_days = (end_date - start_date).days + 1
 date_list = [(start_date + timedelta(days=x)).strftime('%B %-d, %Y') for x in range(delta_days)]
 
-data_file_path = "HATtrick/datagen"
-script_path = os.path.dirname(os.path.realpath(__file__))
+if SF == 10:
+    data_file_path = "HATtrick/datagen_sf10"
+else:
+    data_file_path = "HATtrick/datagen"
 
-# Create Stateflow Graph
+script_path = os.path.dirname(os.path.realpath(__file__))
+freshness_per_txn = messages_per_second * seconds // num_freshness_queries
+
+
 g = StateflowGraph('hattrick_benchmark', operator_state_backend=LocalStateBackend.DICT)
 customer_operator.set_n_partitions(N_PARTITIONS)
 customer_idx_operator.set_n_partitions(N_PARTITIONS)
@@ -77,172 +84,20 @@ g.add_operators(customer_operator, customer_idx_operator, date_operator, date_id
                 supplier_operator, supplier_idx_operator)
 
 
-def populate_customer(styx: SyncStyxClient):
-    with open(os.path.join(script_path, f"{data_file_path}/customer.bin"), "r") as f:
-        reader = csv.reader(f, delimiter='!')
-        cust_partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
-        cust_idx_partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
-        for _, line in tqdm(enumerate(reader), desc="Populating Customer Data"):
-            customer_key = int(line[0])
-            customer_idx_key = line[1]
-            cust_partition: int = styx.get_operator_partition(customer_key, customer_operator)
-            cust_idx_partition: int = styx.get_operator_partition(customer_idx_key, customer_idx_operator)
-            customer_data = {
-                'NAME': line[1],
-                'ADDRESS': line[2],
-                'CITY': line[3],
-                'NATION': line[4],
-                'REGION': line[5],
-                'PHONE': line[6],
-                'MKTSEGMENT': line[7],
-                'PAYMENTCNT': int(line[8])
-            }
-            cust_partitions[cust_partition][customer_key] = customer_data
-            cust_idx_partitions[cust_idx_partition][customer_idx_key] = customer_key
-        for partition, partition_data in cust_partitions.items():
-            print(f"Populating {customer_operator.name}:{partition}...")
-            styx.init_data(customer_operator, partition, partition_data)
-        for partition, partition_data in cust_idx_partitions.items():
-            print(f"Populating {customer_idx_operator.name}:{partition}")
-            styx.init_data(customer_idx_operator, partition, partition_data)
+def update_query(st, min_order_key, max_order_key):
+    st.last_query = st.query_template.format(
+        min_order_key=min_order_key,
+        max_order_key=max_order_key
+    )
+    st.query_count += 1
 
 
-def populate_supplier(styx: SyncStyxClient):
-    with open(os.path.join(script_path, f"{data_file_path}/supplier.bin"), "r") as f:
-        reader = csv.reader(f, delimiter='!')
-        sup_partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
-        sup_idx_partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
-        for _, line in tqdm(enumerate(reader), desc="Populating Supplier Data"):
-            supplier_key = int(line[0])
-            supplier_idx_key = line[1]
-            sup_partition: int = styx.get_operator_partition(supplier_key, supplier_operator)
-            sup_idx_partition: int = styx.get_operator_partition(supplier_idx_key, supplier_idx_operator)
-            supplier_data = {
-                'NAME': line[1],
-                'ADDRESS': line[2],
-                'CITY': line[3],
-                'NATION': line[4],
-                'REGION': line[5],
-                'PHONE': line[6],
-                'YTD': float(line[7])
-            }
-            sup_partitions[sup_partition][supplier_key] = supplier_data
-            sup_idx_partitions[sup_idx_partition][supplier_idx_key] = supplier_key
-        for partition, partition_data in sup_partitions.items():
-            print(f"Populating {supplier_operator.name}:{partition}...")
-            styx.init_data(supplier_operator, partition, partition_data)
-        for partition, partition_data in sup_idx_partitions.items():
-            print(f"Populating {supplier_idx_operator.name}:{partition}")
-            styx.init_data(supplier_idx_operator, partition, partition_data)
-
-
-def populate_line_order(styx: SyncStyxClient):
-    with open(os.path.join(script_path, f"{data_file_path}/lineorder.bin"), "r") as f:
-        reader = csv.reader(f, delimiter='!')
-        partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
-        for _, line in tqdm(enumerate(reader), desc="Populating Lineorder Data"):
-            line_order_key = f"{line[0]}:{line[1]}"
-            partition: int = styx.get_operator_partition(line_order_key, line_order_operator)
-            line_order_data = {
-                'CUSTKEY': int(line[2]),
-                'PARTKEY': int(line[3]),
-                'SUPPKEY': int(line[4]),
-                'ORDERDATE': int(line[5]),
-                'ORDPRIORITY': line[6],
-                'SHIPPRIORITY': line[7],
-                'QUANTITY': int(line[8]),
-                'EXTENDEDPRICE': float(line[9]),
-                'DISCOUNT': float(line[11]),
-                'REVENUE': float(line[12]),
-                'SUPPLYCOST': float(line[13]),
-                'TAX': float(line[14]),
-                'COMMITDATE': line[15],
-                'SHIPMODE': line[16],
-            }
-            partitions[partition][line_order_key] = line_order_data
-        for partition, partition_data in partitions.items():
-            print(f"Populating {line_order_operator.name}:{partition}...")
-            styx.init_data(line_order_operator, partition, partition_data)
-
-
-def populate_part(styx: SyncStyxClient):
-    with open(os.path.join(script_path, f"{data_file_path}/part.bin"), "r") as f:
-        reader = csv.reader(f, delimiter='!')
-        partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
-        for _, line in tqdm(enumerate(reader), desc="Populating Part Data"):
-            part_key = int(line[0])
-            partition: int = styx.get_operator_partition(part_key, part_operator)
-            part_data = {
-                'NAME': line[1],
-                'MFGR': line[2],
-                'CATEGORY': line[3],
-                'BRAND1': line[4],
-                'COLOR': line[5],
-                'TYPE': line[6],
-                'SIZE': int(line[7]),
-                'CONTAINER': line[8],
-                'PRICE': float(line[9])
-            }
-            partitions[partition][part_key] = part_data
-        for partition, partition_data in partitions.items():
-            print(f"Populating {part_operator.name}:{partition}...")
-            styx.init_data(part_operator, partition, partition_data)
-
-
-def populate_date(styx: SyncStyxClient):
-    with open(os.path.join(script_path, f"{data_file_path}/date.bin"), "r") as f:
-        reader = csv.reader(f, delimiter='!')
-        date_partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
-        date_idx_partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
-        for _, line in tqdm(enumerate(reader), desc="Populating Date Data"):
-            date_key = int(line[0])
-            date_idx_key = line[1]
-            date_partition: int = styx.get_operator_partition(date_key, date_operator)
-            date_idx_partition: int = styx.get_operator_partition(date_idx_key, date_idx_operator)
-            date_data = {
-                'DATE': line[1],
-                'DATEOFWEEK': line[2],
-                'MONTH': line[3],
-                'YEAR': int(line[4]),
-                'YEARMONTHNUM': int(line[5]),
-                'YEARMONTH': line[6],
-                'DAYNUMINWEEK': int(line[7]),
-                'DAYNUMINMONTH': int(line[8]),
-                'DAYNUMINYEAR': int(line[9]),
-                'MONTHNUMINYEAR': int(line[10]),
-                'WEEKNUMINYEAR': int(line[11]),
-                'SELLINGSEASON': line[12],
-                'LASTDAYINWEEKFL': bool(line[13]),
-                'LASTDAYINMONTHFL': bool(line[14]),
-                'HOLIDAYFL': bool(line[15]),
-                'WEEKDAYFL': bool(line[16]),
-            }
-            date_partitions[date_partition][date_key] = date_data
-            date_idx_partitions[date_idx_partition][date_idx_key] = date_key
-        for partition, partition_data in date_partitions.items():
-            print(f"Populating {date_operator.name}:{partition}...")
-            styx.init_data(date_operator, partition, partition_data)
-        for partition, partition_data in date_idx_partitions.items():
-            print(f"Populating {date_idx_operator.name}:{partition}...")
-            styx.init_data(date_idx_operator, partition, partition_data)
-
-
-def submit_graph(styx: SyncStyxClient):
-    print(list(g.nodes.values())[0].n_partitions)
-    styx.submit_dataflow(g)
-    print("Graph submitted")
-
-
-def ssb_init(styx: SyncStyxClient):
+def init_styx(styx):
     styx.set_graph(g)
     styx.init_metadata(g)
-    populate_customer(styx)
-    populate_supplier(styx)
-    populate_line_order(styx)
-    populate_part(styx)
-    populate_date(styx)
+    init_data.main(styx, N_PARTITIONS, script_path, data_file_path)
     time.sleep(5)
-    submit_graph(styx)
+    styx.submit_dataflow(g)
 
 
 def get_new_line_order_transaction(front_end_key):
@@ -288,11 +143,13 @@ def get_payment_transaction(front_end_key):
     return payment_txn_operator, front_end_key, 'payment_txn', (params,)
 
 
-def hattrick_transaction_generator(proc_num):
+def hattrick_transaction_generator(proc_num, shared_state):
     c = last_order_key + 1
     while True:
-        front_end_key = int(f'{proc_num}{c}')
+        front_end_key = proc_num + c
         coin = random.randint(1, 100)
+        if c % freshness_per_txn == 0:
+            update_query(shared_state, front_end_key - (freshness_per_txn * 5), front_end_key)
         if coin < 50:
             yield get_new_line_order_transaction(front_end_key)
         else:
@@ -300,18 +157,23 @@ def hattrick_transaction_generator(proc_num):
         c += 1
 
 
-def hattrick_query_generator():
+def hattrick_query_generator(shared_state):
     c = random.randint(1, num_queries)
+    freshness = 0
     while True:
+        if freshness < shared_state.query_count:
+            yield num_queries, shared_state.last_query
+            freshness += 1
         yield c % num_queries, analytical_queries[c % num_queries]
         c += 1
 
 
-def transactional_benchmark_runner(proc_num) -> (dict[bytes, dict], dict[bytes, dict]):
+def transactional_benchmark_runner(args) -> (dict[bytes, dict], dict[bytes, dict]):
+    proc_num, shared_state = args
     print(f'Generator: {proc_num} starting')
     styx = SyncStyxClient(STYX_HOST, STYX_PORT, kafka_url=KAFKA_URL)
     styx.open(consume=False)
-    hattrick_generator = hattrick_transaction_generator(proc_num)
+    hattrick_generator = hattrick_transaction_generator(proc_num, shared_state)
     timestamp_futures: dict[bytes, dict] = {}
     time.sleep(5)
     start = timer()
@@ -325,7 +187,8 @@ def transactional_benchmark_runner(proc_num) -> (dict[bytes, dict], dict[bytes, 
                                      key=key,
                                      function=func_name,
                                      params=params)
-            timestamp_futures[future.request_id] = {"op": f'{func_name} {key}->{params}'}
+            timestamp_futures[future.request_id] = {"op": f'{func_name} {key}->{params}', "txn_id": key
+                                                    if func_name == "new_order_txn" else None}
         styx.flush()
         sec_end = timer()
         lps = sec_end - sec_start
@@ -341,11 +204,12 @@ def transactional_benchmark_runner(proc_num) -> (dict[bytes, dict], dict[bytes, 
     return timestamp_futures
 
 
-def analytical_benchmark_runner(proc_num) -> (dict[bytes, dict], dict[bytes, dict]):
+def analytical_benchmark_runner(args) -> (dict[bytes, dict], dict[bytes, dict]):
+    proc_num, shared_state = args
     print(f'Generator: {proc_num} starting')
     styx = SyncStyxClient(STYX_HOST, STYX_PORT, kafka_url=KAFKA_URL)
     styx.open(consume=False)
-    hattrick_generator = hattrick_query_generator()
+    hattrick_generator = hattrick_query_generator(shared_state)
     timestamp_futures: dict[bytes, dict] = {}
     time.sleep(5)
     start = timer()
@@ -356,7 +220,7 @@ def analytical_benchmark_runner(proc_num) -> (dict[bytes, dict], dict[bytes, dic
                 time.sleep(sleep_time)
             query_id, query = next(hattrick_generator)
             future = styx.send_query(query)
-            timestamp_futures[future.request_id] = {"q": f'{query_id}'}
+            timestamp_futures[future.request_id] = {"q": query_id}
         styx.flush()
         sec_end = timer()
         lps = sec_end - sec_start
@@ -372,28 +236,34 @@ def analytical_benchmark_runner(proc_num) -> (dict[bytes, dict], dict[bytes, dic
     return timestamp_futures
 
 
-def transactional_thread_pool():
+def transactional_thread_pool(shared_state):
     with ProcessPoolExecutor(max_workers=txn_threads) as executor:
-        return list(executor.map(transactional_benchmark_runner, range(txn_threads)))
+        return list(executor.map(transactional_benchmark_runner, [(i, shared_state) for i in range(txn_threads)]))
 
 
-def analytical_thread_pool():
+def analytical_thread_pool(shared_state):
     with ProcessPoolExecutor(max_workers=query_threads) as executor:
-        return list(executor.map(analytical_benchmark_runner, range(query_threads)))
+        return list(executor.map(analytical_benchmark_runner, [(i, shared_state) for i in range(query_threads)]))
 
 
 def main():
     minio = Minio('localhost:9000', access_key='minio', secret_key='minio123', secure=False)
     styx_client = SyncStyxClient(STYX_HOST, STYX_PORT, kafka_url=KAFKA_URL, minio=minio)
-    ssb_init(styx_client)
+    init_styx(styx_client)
     del styx_client
-    print(f'Data populated waiting for {(180 * (SF % 2)) // 60} min')
-    # 5 min so that the init is surely done (snapshot buckets and duckdb)
-    time.sleep(180 * (SF % 2))
+    # Sleep so that the init is surely done (snapshot buckets and duckdb)
+    print(f'Data populated waiting for {(240 * math.ceil(SF / 2)) // 60} min')
+    time.sleep(240 * math.ceil(SF / 2))
+    print(f"Freshness will be measured after {freshness_per_txn} transactions")
+    manager = multiprocessing.Manager()
+    shared_state = manager.Namespace()
+    shared_state.query_template = "SELECT ORDERKEY FROM line_order WHERE ORDERKEY BETWEEN {min_order_key} AND {max_order_key}"
+    shared_state.last_query = ""
+    shared_state.query_count = 0
 
     with ProcessPoolExecutor(max_workers=2) as main_executor:
-        txn_future = main_executor.submit(transactional_thread_pool)
-        anal_future = main_executor.submit(analytical_thread_pool)
+        txn_future = main_executor.submit(transactional_thread_pool, shared_state)
+        anal_future = main_executor.submit(analytical_thread_pool, shared_state)
 
         transactional_results = txn_future.result()
         analytical_results = anal_future.result()
@@ -401,16 +271,23 @@ def main():
     transactional_results = {k: v for d in transactional_results for k, v in d.items()}
     analytical_results = {k: v for d in analytical_results for k, v in d.items()}
 
-    pd.DataFrame({"request_id": list(transactional_results.keys()),
-                  "timestamp": [res["timestamp"] for res in transactional_results.values()],
-                  "op": [res["op"] for res in transactional_results.values()]
-                  }).to_csv(f'{SAVE_DIR}/client_requests.csv',
+    df = pd.DataFrame({"request_id": list(transactional_results.keys()),
+                       "timestamp": [res["timestamp"] for res in transactional_results.values()],
+                       "op": [res["op"] for res in transactional_results.values()],
+                       "txn_id": [res["txn_id"] for res in transactional_results.values()]
+                       })
+    df['txn_id'] = df['txn_id'].astype('Int64')
+    df.to_csv(f'{SAVE_DIR}/client_requests.csv',
                             index=False)
-    pd.DataFrame({"request_id": list(analytical_results.keys()),
-                  "timestamp": [res["timestamp"] for res in analytical_results.values()],
-                  "q": [res["q"] for res in analytical_results.values()]
-                  }).to_csv(f'{SAVE_DIR}/client_queries.csv',
-                            index=False)
+    analytical_df = pd.DataFrame({"request_id": list(analytical_results.keys()),
+                                  "timestamp": [res["timestamp"] for res in analytical_results.values()],
+                                  "q": [res["q"] for res in analytical_results.values()]
+                                  })
+    freshness_df = analytical_df[analytical_df["q"] == num_queries]
+    analytical_df = analytical_df[analytical_df["q"] < num_queries]
+
+    freshness_df.to_csv(f'{SAVE_DIR}/freshness_queries.csv', index=False)
+    analytical_df.to_csv(f'{SAVE_DIR}/client_queries.csv', index=False)
 
 
 if __name__ == '__main__':

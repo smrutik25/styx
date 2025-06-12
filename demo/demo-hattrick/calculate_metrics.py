@@ -1,3 +1,4 @@
+import ast
 import json
 import math
 import sys
@@ -5,6 +6,31 @@ import sys
 import pandas as pd
 import numpy as np
 
+
+def txns_completed_upto_query(timestamp, df):
+    return df.loc[df['timestamp'] <= timestamp, 'txn_id'].tolist()
+
+
+def min_txn_not_in_query_response(row):
+    txn_ids = row['txn_completed_till_ts']
+    query_response = row['query_response']
+    if query_response:
+        max_query_response = max(query_response)
+        txn_ids = [txn_id for txn_id in txn_ids if txn_id > max_query_response]
+        return min(txn_ids) if txn_ids else -1
+    if txn_ids:
+        return 0
+    return -1
+
+
+last_valid = None
+def fill_zero_with_last(row):
+    global last_valid
+    if row == 0 or pd.isna(row):
+        return last_valid
+    else:
+        last_valid = row
+        return row
 
 def main(
         save_dir,
@@ -18,7 +44,8 @@ def main(
 
     origin_input_msgs = pd.read_csv(f'{save_dir}/client_requests.csv',
                                     dtype={'request_id': bytes,
-                                           'timestamp': np.uint64}).sort_values('timestamp')
+                                           'timestamp': np.uint64,
+                                           'txn_id': 'Int64'}).sort_values('timestamp')
 
     origin_input_queries = pd.read_csv(f'{save_dir}/client_queries.csv',
                                     dtype={'request_id': bytes,
@@ -35,6 +62,36 @@ def main(
     output_queries = pd.read_csv(f'{save_dir}/query_output.csv',
                               dtype={'request_id': bytes,
                                      'timestamp': np.uint64}, low_memory=False).sort_values('timestamp')
+
+    freshness_requests = pd.read_csv(f'{save_dir}/freshness_queries.csv',
+                              dtype={'request_id': bytes,
+                                     'timestamp': np.uint64}, low_memory=False)
+
+    freshness_response = pd.read_csv(f'{save_dir}/freshness_output.csv',
+                              dtype={'request_id': bytes}, low_memory=False)
+    freshness_response['response'] = freshness_response['response'].apply(ast.literal_eval)
+
+    new_txns = origin_input_msgs[origin_input_msgs["txn_id"].notnull()]
+    new_txns = pd.merge(new_txns[["request_id", "txn_id"]], output_msgs[['request_id', 'timestamp']],
+                        on="request_id", how="inner")
+
+    global last_valid
+    last_valid = min(new_txns['txn_id'])
+    freshness = pd.merge(freshness_requests[['request_id', 'timestamp']],
+                         freshness_response[['request_id', 'response']],
+                         on="request_id", how="inner")
+    freshness['query_response'] = freshness['response'].apply(lambda x: [elem for inner in x for elem in inner])
+    freshness = freshness[['timestamp', 'query_response']]
+    freshness['txn_completed_till_ts'] = freshness['timestamp'].apply(
+        lambda ts: txns_completed_upto_query(ts, new_txns))
+    freshness['first_unseen_txn'] = freshness.apply(min_txn_not_in_query_response, axis=1)
+    freshness['first_unseen_txn'] = freshness['first_unseen_txn'].astype('Int64')
+    freshness['txn_id'] = freshness['first_unseen_txn'].apply(fill_zero_with_last).astype('Int64')
+    freshness = pd.merge(freshness, new_txns, on="txn_id", how="left", suffixes=('_query', '_txn'))
+    freshness['freshness'] = freshness.apply(lambda row: row['timestamp_query'] - row['timestamp_txn']
+                                             if isinstance(row['txn_id'], int) else 0, axis=1)
+    freshness = freshness['freshness'].fillna(0).tolist()
+
 
     exactly_once_output = output_msgs['request_id'].is_unique
     exactly_once_output_queries = output_queries['request_id'].is_unique
@@ -134,6 +191,13 @@ def main(
                                        "min": min(runtime_queries),
                                        "mean": np.average(runtime_queries)
                                        },
+        "freshness (ms)": {
+                           95: np.percentile(freshness, 95),
+                           99: np.percentile(freshness, 99),
+                           "max": max(freshness),
+                           "min": min(freshness),
+                           "mean": np.average(freshness)
+                           },
         "missed messages": missed,
         "missed queries": missed_queries,
         "transactional_throughput": {
@@ -160,5 +224,7 @@ if __name__ == '__main__':
         int(sys.argv[2]),
         int(sys.argv[3]),
         int(sys.argv[4]),
-        int(sys.argv[5])
+        int(sys.argv[5]),
+        int(sys.argv[6]),
+        int(sys.argv[7])
     )
