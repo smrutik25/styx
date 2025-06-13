@@ -51,6 +51,7 @@ services:
       KAFKA_BROKER_ID: 1
       KAFKA_MESSAGE_MAX_BYTES: 134217728      # 128MB
       KAFKA_REPLICA_FETCH_MAX_BYTES: 134217728  # 128MB
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
     depends_on:
       - zoo1
       - zoo2
@@ -71,6 +72,7 @@ services:
       KAFKA_BROKER_ID: 2
       KAFKA_MESSAGE_MAX_BYTES: 134217728      # 128MB
       KAFKA_REPLICA_FETCH_MAX_BYTES: 134217728  # 128MB
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
     depends_on:
       - zoo1
       - zoo2
@@ -92,6 +94,7 @@ services:
       KAFKA_BROKER_ID: 3
       KAFKA_MESSAGE_MAX_BYTES: 134217728      # 128MB
       KAFKA_REPLICA_FETCH_MAX_BYTES: 134217728  # 128MB
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
     depends_on:
       - zoo1
       - zoo2
