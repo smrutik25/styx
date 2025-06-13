@@ -22,6 +22,13 @@ class MinioReader:
                 if operator_name in operator_list:
                     self.operator_snapshots[operator_name].append(obj.object_name)
 
+    async def deserialize_snapshot_partition(self, operator):
+        for object_path in self.operator_snapshots[operator]:
+            partition_data = zstd_msgpack_deserialization(
+                self.minio_client.get_object(SNAPSHOT_BUCKET_NAME, object_path).data
+            )
+            yield partition_data
+
     async def deserialize_snapshots(self, operator):
         deserialized_objects = {}
         for object_path in self.operator_snapshots[operator]:

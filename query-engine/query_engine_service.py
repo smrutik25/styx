@@ -57,7 +57,7 @@ class QueryEngineService(object):
                 logging.warning(f"Query engine received execution graph")
                 await self.qe_handler.stateflow_graph_to_tables(message[0])
                 # Loading init data (handle chunking for large files)
-                await self.qe_handler.load_snapshots("0")
+                await self.qe_handler.init_data("0")
                 self.duckdb_ready.set()
             case MessageType.SnapID:
                 snapshot_id = self.networking.decode_message(data)[0]
@@ -159,7 +159,7 @@ class QueryEngineService(object):
         while True:
             try:
                 await asyncio.wait_for(self.duckdb_ready.wait(), timeout=1.0)
-                logging.warning("Kafka is ready to consume client queries.")
+                logging.warning("Duckdb is ready to consume client queries.")
                 break
             except asyncio.TimeoutError:
                 await asyncio.sleep(5)

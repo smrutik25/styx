@@ -10,12 +10,23 @@ class QueryEngineReadWrite:
         self.db_con = db_con
 
     @staticmethod
-    def _generate_query(table_name: str, tables: dict) -> str:
+    def _generate_query(table_name: str, tables: dict, data_init: bool = False) -> str:
         insert_str = "INSERT OR REPLACE INTO "
-        if "primary_keys" not in tables[table_name]:
+        if "primary_keys" not in tables[table_name] or data_init:
             insert_str = "INSERT INTO "
         return (f"{insert_str} {table_name} ({",".join(tables[table_name]["columns"])}) "
                 f"SELECT {",".join(tables[table_name]["df_columns"])} FROM df")
+
+    def init_data(self, df: pd.DataFrame, table_name: str, tables: dict) -> None:
+        write_cursor = self.db_con.cursor()
+        try:
+            query = self._generate_query(table_name, tables, data_init=True)
+            write_cursor.execute(query)
+            write_cursor.commit()
+        except Exception as e:
+            logging.error(f"Error in duckdb init insert: {e}")
+        finally:
+            write_cursor.close()
 
     def write_to_table(self, data: dict[str, pd.DataFrame], tables: dict) -> None:
         write_cursor = self.db_con.cursor()

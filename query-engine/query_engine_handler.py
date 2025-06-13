@@ -42,6 +42,21 @@ class QueryEngineHandler:
         df = df.drop(columns=['index'])
         return df
 
+    async def _create_df(self, data, table_name, table_index):
+        if not len(data):
+            df = pd.DataFrame(list(data.items()), columns=self.qe_ddl.tables[table_name]["columns"])
+        else:
+            first_value = next(iter(data.values()))
+            if isinstance(first_value, dict):
+                df = pd.DataFrame.from_dict(data, orient="index").reset_index()
+            else:
+                df = pd.DataFrame(list(data.items()), columns=self.qe_ddl.tables[table_name]["columns"])
+            if len(table_index) > 1:
+                df = await self._split_index(df, table_index)
+            else:
+                df = df.rename(columns={'index': table_index[0]})
+        return df
+
     async def deserialized_data_to_df(self, snapshot_data: dict[str, dict]) -> dict[str, pd.DataFrame] | None:
         indexes = self.qe_ddl.table_indexes
         tables = self.qe_ddl.tables
@@ -53,20 +68,25 @@ class QueryEngineHandler:
             data = snapshot_data[table_name]
             table_index = indexes[table_name]
             logging.warning(f"Table: {table_name}, rows to upsert: {len(data)}")
-            if not len(data):
-                df_data[table_name] = pd.DataFrame(list(data.items()), columns=self.qe_ddl.tables[table_name]["columns"])
-            else:
-                first_value = next(iter(data.values()))
-                if isinstance(first_value, dict):
-                    df = pd.DataFrame.from_dict(data, orient="index").reset_index()
-                else:
-                    df = pd.DataFrame(list(data.items()), columns=self.qe_ddl.tables[table_name]["columns"])
-                if len(table_index) > 1:
-                    df = await self._split_index(df, table_index)
-                else:
-                    df = df.rename(columns={'index': table_index[0]})
-                df_data[table_name] = df
+            df = await self._create_df(data, table_name, table_index)
+            df_data[table_name] = df
         return df_data
+
+    async def init_data(self, snapshot_id: str):
+        minio_client = MinioReader(self.minio_client, snapshot_id)
+        operator_list = self.qe_ddl.operators
+        await minio_client.identify_minio_delta(operator_list)
+        tables = self.qe_ddl.tables
+        # TODO: Handle nested case
+        for operator in operator_list:
+            table_index = self.qe_ddl.table_indexes[operator]
+            async for partition_data in minio_client.deserialize_snapshot_partition(operator):
+                logging.warning(f"Table: {operator}, rows to upsert: {len(partition_data)}")
+                df_data = await self._create_df(partition_data, operator, table_index)
+                if not df_data.empty:
+                    self.qe_readwrite.init_data(df_data, operator, tables)
+        logging.warning("Loaded init data, creating indexes")
+        self.qe_ddl.add_constraints()
 
     async def load_snapshots(self, snapshot_id: str) -> None:
         minio_client = MinioReader(self.minio_client, snapshot_id)
