@@ -64,7 +64,6 @@ class QueryEngineTables:
         pk_constraint = ""
         if primary_keys:
             self.__table_indexes[table_name] = primary_keys
-            # pk_constraint = f", PRIMARY KEY ({', '.join(primary_keys)})"
         create_table_sql = f"""CREATE TABLE IF NOT EXISTS '{table_name}' ({', '.join(column_definitions)}{pk_constraint});"""
         self.db_con.execute(create_table_sql)
 

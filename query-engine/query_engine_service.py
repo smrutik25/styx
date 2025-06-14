@@ -2,6 +2,7 @@ import asyncio
 import os
 import socket
 import struct
+import time
 from asyncio import StreamReader, StreamWriter
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from aiokafka.errors import KafkaConnectionError
@@ -56,14 +57,17 @@ class QueryEngineService(object):
                 message = self.networking.decode_message(data)
                 logging.warning(f"Query engine received execution graph")
                 await self.qe_handler.stateflow_graph_to_tables(message[0])
-                # Loading init data (handle chunking for large files)
                 await self.qe_handler.init_data("0")
+                await self.kafka_producer_create_topics()
+                await self.kafka_consumer_subscribe_topic()
                 self.duckdb_ready.set()
             case MessageType.SnapID:
+                start = time.perf_counter()
                 snapshot_id = self.networking.decode_message(data)[0]
                 logging.warning(f"Query engine received snapshot: {snapshot_id}")
                 await self.qe_handler.load_snapshots(snapshot_id)
-                logging.warning(f"Snapshot {snapshot_id} committed")
+                end = time.perf_counter()
+                logging.warning(f"Snapshot {snapshot_id} committed. Took {end - start}s")
 
     async def start_tcp_service(self):
         async def request_handler(reader: StreamReader, writer: StreamWriter):
@@ -194,8 +198,6 @@ class QueryEngineService(object):
             await self.kafka_query_consumer.stop()
 
     async def main(self):
-        self.kafka_producer_init_task = asyncio.create_task(self.kafka_producer_create_topics())
-        self.kafka_consumer_init_task = asyncio.create_task(self.kafka_consumer_subscribe_topic())
         self.kafka_consumer_task = asyncio.create_task(self.consume_queries())
         await self.start_tcp_service()
 

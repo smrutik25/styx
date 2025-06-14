@@ -1,7 +1,11 @@
+import asyncio
 import os
+import time
+
 import duckdb
 import logging
 import pandas as pd
+import numpy as np
 from minio import Minio
 from styx.common.stateflow_graph import StateflowGraph
 from util.duckdb_ddl import QueryEngineTables
@@ -12,6 +16,7 @@ DATABASE_FILE_PATH: str = os.getenv('DATABASE_FILE_PATH', 'data/duckdb_database.
 MINIO_URL: str = f"{os.environ['MINIO_HOST']}:{os.environ['MINIO_PORT']}"
 MINIO_ACCESS_KEY: str = os.environ['MINIO_ROOT_USER']
 MINIO_SECRET_KEY: str = os.environ['MINIO_ROOT_PASSWORD']
+CHUNK_SIZE = 1000000
 
 
 class QueryEngineHandler:
@@ -81,12 +86,23 @@ class QueryEngineHandler:
         for operator in operator_list:
             table_index = self.qe_ddl.table_indexes[operator]
             async for partition_data in minio_client.deserialize_snapshot_partition(operator):
-                logging.warning(f"Table: {operator}, rows to upsert: {len(partition_data)}")
+                await asyncio.sleep(0)
+                logging.warning(f"Table: {operator}, rows to insert: {len(partition_data)}")
+                start_time = time.perf_counter()
                 df_data = await self._create_df(partition_data, operator, table_index)
                 if not df_data.empty:
-                    self.qe_readwrite.init_data(df_data, operator, tables)
+                    end_time = time.perf_counter()
+                    logging.warning(f"Dataframe created, took {end_time - start_time}s, inserting into table")
+                    num_chunks = int(np.ceil(len(df_data) / CHUNK_SIZE))
+                    for i in range(num_chunks):
+                        chunk = df_data.iloc[i * CHUNK_SIZE: (i + 1) * CHUNK_SIZE]
+                        self.qe_readwrite.init_data(chunk, operator, tables)
+                        logging.warning(
+                            f"Inserted into table, took {time.perf_counter() - end_time}s")
+        start_time = time.perf_counter()
         logging.warning("Loaded init data, creating indexes")
         self.qe_ddl.add_constraints()
+        logging.warning(f"Added indexes, took {time.perf_counter() - start_time}s")
 
     async def load_snapshots(self, snapshot_id: str) -> None:
         minio_client = MinioReader(self.minio_client, snapshot_id)
