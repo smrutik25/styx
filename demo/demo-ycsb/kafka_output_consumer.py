@@ -23,7 +23,7 @@ async def consume(save_dir):
 
     print('Start consumer')
     records = []
-
+    query_records = []
     consumer = AIOKafkaConsumer(
         auto_offset_reset='earliest',
         value_deserializer=msgpack_deserialization,
@@ -52,12 +52,12 @@ async def consume(save_dir):
                     records.append((msg.key, msg.value, msg.timestamp))
         consumer.subscribe(topics=['styx-query-engine--OUT'])
         while True:
-            data = await consumer.getmany(timeout_ms=1_000)
+            data = await consumer.getmany(timeout_ms=10_000)
             if not data:
                 break
             for messages in data.values():
                 for msg in messages:
-                    print(f"Query response: {msg.value}")
+                    query_records.append((msg.key, msg.value, msg.timestamp))
 
     finally:
         # Will leave consumer group; perform autocommit if enabled.
@@ -65,7 +65,9 @@ async def consume(save_dir):
         pd.DataFrame.from_records(records,
                                   columns=['request_id', 'response', 'timestamp']).to_csv(f'{save_dir}/output.csv',
                                                                                           index=False)
-
+        pd.DataFrame.from_records(query_records,
+                                  columns=['request_id', 'response', 'timestamp']).to_csv(f'{save_dir}/output_queries.csv',
+                                                                                          index=False)
 
 def main(save_dir=None):
     if save_dir is None:

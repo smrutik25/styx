@@ -6,6 +6,10 @@ services:
     image: dev/styx-query-engine:latest
     volumes:
       - ./query-engine/data:/usr/local/styx/data
+    deploy:
+      resources:
+        limits:
+          cpus: '7'
     environment:
       - INGRESS_TYPE=KAFKA
       - KAFKA_URL=kafka1:19092

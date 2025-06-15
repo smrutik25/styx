@@ -8,6 +8,10 @@ services:
     ports:
       - "8886:8888"
       - "8000:8000"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
     env_file:
       - env/minio.env
     environment:
@@ -55,12 +59,10 @@ services:
       - DISCOVERY_PORT=8888
     env_file:
       - env/minio.env
-#    deploy:
-#      resources:
-#        limits:
-#          cpus: '2'
-#        reservations:
-#          cpus: '2'
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
 
 volumes:
   grafana_data:
