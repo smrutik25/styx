@@ -33,7 +33,7 @@ echo "timestamp,container_name,cpu %,mem usage / limit,mem %,net I/O,block I/O,p
 END=$((SECONDS + DURATION))
 
 echo "Starting stats collection for $DURATION seconds with $INTERVAL seconds interval..."
-while [ $SECONDS -lt $END ]; do
+while true; do
     TIMESTAMP=$(date "+%Y-%m-%d %H:%M:%S")
 
     docker stats --no-stream --format "{{.CPUPerc}},{{.MemUsage}},{{.MemPerc}},{{.NetIO}},{{.BlockIO}},{{.PIDs}}" "$COORDINATOR_CONTAINER" |
@@ -49,5 +49,3 @@ while [ $SECONDS -lt $END ]; do
 
     sleep $INTERVAL
 done
-
-echo "Done collecting stats."

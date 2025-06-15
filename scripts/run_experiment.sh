@@ -17,12 +17,11 @@ query_rate=${13:-0}
 bash scripts/start_styx_cluster.sh "$n_part" "$epoch_size" "$n_part" "$query_engine"
 
 sleep 10
-bash scripts/stats_collect_docker.sh > monitor.log 2>&1 &
 
 if [[ $workload_name == "ycsbt" ]]; then
     # YCSB-T
     run_with_validation=true
-    python demo/demo-ycsb/client.py "$client_threads" "$n_keys" "$n_part" "$zipf_const" "$input_rate" "$total_time" "$saving_dir" "$warmup_seconds" "$run_with_validation" "$query_engine"
+    python demo/demo-ycsb/client_hybrid.py "$client_threads" "$n_keys" "$n_part" "$zipf_const" "$input_rate" "$total_time" "$saving_dir" "$warmup_seconds" "$run_with_validation" "$query_engine"
 elif [[ $workload_name == "dhr" ]]; then
     # Deathstar Hotel Reservation
     python demo/demo-deathstar-hotel-reservation/pure_kafka_demo.py "$saving_dir" "$client_threads" "$n_part" "$input_rate" "$total_time" "$warmup_seconds"
@@ -37,6 +36,9 @@ elif [[ $workload_name == "ssb" ]]; then
     # SSB for HATtrick
 #    bash scripts/generate_ssb_dataset.sh "$n_keys"
     python demo/demo-hattrick/pure_kafka_demo.py "$saving_dir" "$client_threads" "$n_part" "$input_rate" "$total_time" "$warmup_seconds" "$n_keys" "$query_threads" "$query_rate"
+elif [[ $workload_name == "hat" ]]; then
+    # HATtrick Benchmark
+    python demo/demo-hattrick/hattrick.py "$n_part" "$total_time" "$warmup_seconds" "$n_keys" "$saving_dir"
 else
     echo "Benchmark not supported!"
 fi

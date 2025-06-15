@@ -3,49 +3,6 @@ from styx.common.stateful_function import StatefulFunction
 
 ycsb_operator = Operator('ycsb')
 
-ycsb_operator.set_analytical_schema([
-    {
-      "column_name": "id",
-      "data_type": "BIGINT",
-      "primary_key": True
-    },
-    {
-      "column_name": "value",
-      "data_type": "BIGINT",
-      "nullable": False,
-    }
-])
-
-# Nested schema test
-# ycsb_operator.set_analytical_schema([
-#     {
-#       "column_name": "id",
-#       "data_type": "BIGINT",
-#       "primary_key": True
-#     },
-#     {
-#       "column_name": "value",
-#       "data_type": "BIGINT",
-#       "nullable": False,
-#       "unnest": True,
-#       "unnest_table_name": "data_values",
-#       "nested_column_mapping": [
-#         {
-#           "column_name": "value_id",
-#           "data_type": "BIGINT",
-#           "primary_key": True,
-#           "nested_source_column": "ycsb.id"
-#         },
-#         {
-#           "column_name": "value",
-#           "data_type": "BIGINT",
-#           "nullable": False,
-#           "nested_source_column": "ycsb.id"
-#         }
-#       ]
-#     }
-# ])
-
 
 class NotEnoughCredit(Exception):
     pass
