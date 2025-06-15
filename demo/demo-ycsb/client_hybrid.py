@@ -30,7 +30,6 @@ N_PARTITIONS = int(sys.argv[3])
 STARTING_MONEY = 1_000_000
 ZIPF_CONST = float(sys.argv[4])
 messages_per_second = int(sys.argv[5])
-queries_per_second = 10
 sleeps_per_second = 100
 sleep_time = 0.0085
 seconds = int(sys.argv[6])
@@ -43,9 +42,55 @@ KAFKA_URL = 'localhost:9092'
 # KAFKA_URL = '35.229.114.18:9094'
 SAVE_DIR: str = sys.argv[7]
 warmup_seconds: int = int(sys.argv[8])
-run_with_validation = bool(sys.argv[9])
-num_queries = len(analytical_queries
-                  )
+run_with_validation = sys.argv[9].lower() == 'true'
+hybrid_load = sys.argv[10].lower() == 'true'
+queries_per_second = 0
+
+if hybrid_load:
+    ycsb_operator.set_analytical_schema([
+        {
+            "column_name": "id",
+            "data_type": "BIGINT",
+            "primary_key": True
+        },
+        {
+            "column_name": "value",
+            "data_type": "BIGINT",
+            "nullable": False,
+        }
+    ])
+
+    # Nested schema test
+    # ycsb_operator.set_analytical_schema([
+    #     {
+    #       "column_name": "id",
+    #       "data_type": "BIGINT",
+    #       "primary_key": True
+    #     },
+    #     {
+    #       "column_name": "value",
+    #       "data_type": "BIGINT",
+    #       "nullable": False,
+    #       "unnest": True,
+    #       "unnest_table_name": "data_values",
+    #       "nested_column_mapping": [
+    #         {
+    #           "column_name": "value_id",
+    #           "data_type": "BIGINT",
+    #           "primary_key": True,
+    #           "nested_source_column": "ycsb.id"
+    #         },
+    #         {
+    #           "column_name": "value",
+    #           "data_type": "BIGINT",
+    #           "nullable": False,
+    #           "nested_source_column": "ycsb.id"
+    #         }
+    #       ]
+    #     }
+    # ])
+    queries_per_second = 20
+num_queries = len(analytical_queries)
 ####################################################################################################################
 g = StateflowGraph('ycsb-benchmark', operator_state_backend=LocalStateBackend.DICT)
 ycsb_operator.set_n_partitions(N_PARTITIONS)
@@ -187,17 +232,19 @@ def main():
 
     with ProcessPoolExecutor(max_workers=2) as main_executor:
         txn_future = main_executor.submit(transactional_thread_pool)
-        anal_future = main_executor.submit(analytical_thread_pool)
+        if hybrid_load:
+            anal_future = main_executor.submit(analytical_thread_pool)
 
         transactional_results = txn_future.result()
-        analytical_results = anal_future.result()
+        if hybrid_load:
+            analytical_results = anal_future.result()
 
     transactional_results = {k: v for d in transactional_results for k, v in d.items()}
     assert len(transactional_results) == messages_per_second * seconds * threads
 
-    analytical_results = {k: v for d in analytical_results for k, v in d.items()}
-    assert len(analytical_results) == queries_per_second * seconds * threads
-
+    if hybrid_load:
+        analytical_results = {k: v for d in analytical_results for k, v in d.items()}
+        assert len(analytical_results) == queries_per_second * seconds * threads
 
     if run_with_validation:
         # wait for system to stabilize
@@ -230,10 +277,11 @@ def main():
                   "op": [res["op"] for res in transactional_results.values()]
                   }).sort_values("timestamp").to_csv(f'{SAVE_DIR}/client_requests.csv', index=False)
 
-    pd.DataFrame({"request_id": list(analytical_results.keys()),
-                  "timestamp": [res["timestamp"] for res in analytical_results.values()],
-                  "q": [res["q"] for res in analytical_results.values()]
-                  }).sort_values("timestamp").to_csv(f'{SAVE_DIR}/client_queries.csv', index=False)
+    if hybrid_load:
+        pd.DataFrame({"request_id": list(analytical_results.keys()),
+                      "timestamp": [res["timestamp"] for res in analytical_results.values()],
+                      "q": [res["q"] for res in analytical_results.values()]
+                      }).sort_values("timestamp").to_csv(f'{SAVE_DIR}/client_queries.csv', index=False)
     print('Workload completed')
 
 
@@ -242,7 +290,7 @@ if __name__ == "__main__":
     main()
 
     print()
-    kafka_output_consumer.main(SAVE_DIR)
+    kafka_output_consumer.main(SAVE_DIR, hybrid_load)
 
     print()
     calculate_metrics.main(
@@ -254,5 +302,5 @@ if __name__ == "__main__":
         warmup_seconds,
         SAVE_DIR,
         run_with_validation,
-        queries=True
+        hybrid_load
     )

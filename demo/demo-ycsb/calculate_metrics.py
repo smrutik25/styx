@@ -18,14 +18,18 @@ def main(
         warmup_seconds,
         save_dir,
         run_with_validation,
-        queries=False
+        hybrid_load=False
 ):
     print('Calculating metrics...')
 
     if zipf_const > 0:
         exp_name = f"ycsbt_zipf_{zipf_const}_{input_rate * client_threads}"
     else:
-        exp_name = f"ycsbt_uni_{input_rate * client_threads}"
+        if hybrid_load:
+            name = "hyb"
+        else:
+            name = "txn"
+        exp_name = f"ycsbt_uni_{n_keys}_{name}"
 
     starting_money = 1_000_000
 
@@ -160,7 +164,7 @@ def main(
         if not are_we_consistent:
             print(f"{'\033[91m'}NOT CONSISTENT: {verification_total} != {n_keys * starting_money}{'\033[0m'}")
 
-    if queries:
+    if hybrid_load:
         origin_input_msgs = pd.read_csv(f'{save_dir}/client_queries.csv',
                                         dtype={'request_id': bytes,
                                                'timestamp': np.uint64}).sort_values('timestamp')
@@ -251,12 +255,16 @@ def main(
         }
         res_dict.update(res_dict_analytical)
 
-    json_dir = "save_dir.split("/")[0]}/ycsbt"
-    os.makedirs(json_dir)
-    print(f'Done. Persisted metrics in {json_dir}/{exp_name}.json')
-    with open(f'{json_dir}/{exp_name}.json', 'w', encoding='utf-8') as f:
+    with open(f'{save_dir}/{exp_name}.json', 'w', encoding='utf-8') as f:
         json.dump(res_dict, f, ensure_ascii=False, indent=4)
-    shutil.rmtree(save_dir, ignore_errors=True)
+    for filename in os.listdir(save_dir):
+        if filename.endswith(".csv"):
+            file_path = os.path.join(save_dir, filename)
+            try:
+                os.remove(file_path)
+                print(f"Deleted: {file_path}")
+            except Exception as e:
+                print(f"Error deleting {file_path}: {e}")
 
 
 if __name__ == '__main__':
