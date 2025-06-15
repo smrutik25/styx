@@ -7,6 +7,7 @@ from styx.client import SyncStyxClient
 from functions import (customer_operator, customer_idx_operator, date_operator, date_idx_operator,
                        line_order_operator, part_operator, supplier_operator, supplier_idx_operator)
 
+
 def populate_customer(styx: SyncStyxClient, script_path, data_file_path, partitions):
     with open(os.path.join(script_path, f"{data_file_path}/customer.bin"), "r") as f:
         reader = csv.reader(f, delimiter='!')
@@ -155,7 +156,6 @@ def populate_date(styx: SyncStyxClient, script_path, data_file_path, partitions)
         for partition, partition_data in date_idx_partitions.items():
             print(f"Populating {date_idx_operator.name}:{partition}...")
             styx.init_data(date_idx_operator, partition, partition_data)
-
 
 
 def main(styx: SyncStyxClient, partitions, script_path, data_file_path):

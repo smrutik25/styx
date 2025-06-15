@@ -41,7 +41,8 @@ def main(
         client_threads,
         query_threads,
         sf,
-        freshness=True):
+        freshness=True,
+        hat=True):
     exp_name = f"hattrick_SF{sf}_{input_rate * client_threads}_{query_rate * query_threads}"
     res_dict = {}
     if input_rate:
@@ -78,7 +79,7 @@ def main(
                 throughput[bucket_id] += 1
 
         throughput_vals = list(throughput.values())
-        total_time = (max(output_msgs['timestamp']) - min(output_msgs['timestamp'])) // granularity
+        total_time = (max(output_msgs['timestamp']) - min(input_msgs['timestamp'])) // granularity
 
         req_ids = output_msgs['request_id']
         dup = output_msgs[req_ids.isin(req_ids[req_ids.duplicated()])].sort_values("request_id")
@@ -142,7 +143,7 @@ def main(
                 throughput[bucket_id] += 1
 
         query_throughput_vals = list(throughput.values())
-        total_time = (max(output_queries['timestamp']) - min(output_queries['timestamp'])) // granularity
+        total_time = (max(output_queries['timestamp']) - min(input_queries['timestamp'])) // granularity
 
         req_ids = output_queries['request_id']
         dup_queries = output_queries[req_ids.isin(req_ids[req_ids.duplicated()])].sort_values("request_id")
@@ -210,9 +211,12 @@ def main(
                                "min": min(freshness),
                                "mean": np.average(freshness)
                                }
-
-    with open(f'{save_dir.split("/")[0]}/hattrick/{exp_name}.json', 'w', encoding='utf-8') as f:
-        json.dump(res_dict, f, ensure_ascii=False, indent=4)
+    if hat:
+        with open(f'{save_dir.split("/")[0]}/hattrick/{exp_name}.json', 'w', encoding='utf-8') as f:
+            json.dump(res_dict, f, ensure_ascii=False, indent=4)
+    else:
+        with open(f'{save_dir}/{exp_name}.json', 'w', encoding='utf-8') as f:
+            json.dump(res_dict, f, ensure_ascii=False, indent=4)
 
     tps = res_dict["transactional_throughput"]["avg"] if "transactional_throughput" in res_dict else 0
     qps = res_dict["analytical_throughput"]["avg"] if "analytical_throughput" in res_dict else 0

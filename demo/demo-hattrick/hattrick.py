@@ -1,4 +1,4 @@
-# ./scripts/run_experiment.sh hat 300 1 4 0.0 1 30 results 5 1000 true 1 20
+# ./scripts/run_experiment.sh hat 300 1 4 0.0 1 60 results 10 1000 true 1 20
 
 import multiprocessing
 import os
@@ -21,7 +21,7 @@ from aiokafka import AIOKafkaConsumer
 import pandas as pd
 import kafka_output_consumer_hattrick
 import calculate_metrics_hattrick
-import init_data
+import init_data_hattrick
 
 from styx.common.serialization import msgpack_deserialization
 from styx.client import SyncStyxClient
@@ -60,7 +60,7 @@ freshness_per_txn = 500
 if SF == 10:
     data_file_path = "HATtrick/datagen_sf10"
 else:
-    data_file_path = "HATtrick/datagen_new"
+    data_file_path = "HATtrick/datagen"
 
 
 g = StateflowGraph('hattrick_benchmark', operator_state_backend=LocalStateBackend.DICT)
@@ -92,7 +92,7 @@ def update_query(st, min_order_key, max_order_key):
 def init_styx(styx):
     styx.set_graph(g)
     styx.init_metadata(g)
-    init_data.main(styx, N_PARTITIONS, script_path, data_file_path)
+    init_data_hattrick.main(styx, N_PARTITIONS, script_path, data_file_path)
     time.sleep(5)
     styx.submit_dataflow(g)
 
@@ -164,6 +164,7 @@ def hattrick_query_generator(shared_state):
 
 def transactional_benchmark_runner(args) -> (dict[bytes, dict], dict[bytes, dict]):
     proc_num, messages_per_second, shared_state = args
+    time.sleep(10)
     print(f'Generator: {proc_num} starting')
     styx = SyncStyxClient(STYX_HOST, STYX_PORT, kafka_url=KAFKA_URL)
     styx.open(consume=False)
@@ -419,14 +420,15 @@ async def main():
     init_styx(styx_client)
     del styx_client
     # Sleep so that the init is surely done (snapshot buckets and duckdb)
-    # print(f'Data populated waiting for {(240 * math.ceil(SF / 2)) // 60} min')
-    # time.sleep(240 * math.ceil(SF / 2))
+    print(f'Data populated waiting for {(240 * math.ceil(SF / 2)) // 60} min')
+    time.sleep(240 * math.ceil(SF / 2))
     print(f"Freshness will be measured after {freshness_per_txn} transactions")
     txn_kafka_consumer = await setup_kafka_txns()
     ana_kafka_consumer = await setup_kafka_query_engine()
     try:
         max_tps = await find_txn_saturation(txn_kafka_consumer)
         max_qps = await find_analytical_saturation(ana_kafka_consumer)
+        #TODO: Run ssb to find max_tps and max_qps, then plugin here
         await hattrick_benchmark(max_tps, max_qps, txn_kafka_consumer, ana_kafka_consumer)
     finally:
         await txn_kafka_consumer.stop()

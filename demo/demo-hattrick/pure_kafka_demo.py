@@ -1,3 +1,6 @@
+# SF1:  ./scripts/run_experiment.sh ssb 1000 1 4 0.0 1 60 results 10 1000 true 1 20
+# SF10:  ./scripts/run_experiment.sh ssb 1000 10 4 0.0 1 60 results 10 1000 true 1 20
+
 import multiprocessing
 import os
 import math
@@ -15,8 +18,8 @@ from concurrent.futures import ProcessPoolExecutor
 
 import pandas as pd
 import kafka_output_consumer
-import calculate_metrics
-import init_data
+import calculate_metrics_hattrick
+import init_data_hattrick
 
 from styx.client import SyncStyxClient
 from analytical_queries import analytical_queries
@@ -95,7 +98,7 @@ def update_query(st, min_order_key, max_order_key):
 def init_styx(styx):
     styx.set_graph(g)
     styx.init_metadata(g)
-    init_data.main(styx, N_PARTITIONS, script_path, data_file_path)
+    init_data_hattrick.main(styx, N_PARTITIONS, script_path, data_file_path)
     time.sleep(5)
     styx.submit_dataflow(g)
 
@@ -252,8 +255,8 @@ def main():
     init_styx(styx_client)
     del styx_client
     # Sleep so that the init is surely done (snapshot buckets and duckdb)
-    print(f'Data populated waiting for {(240 * math.ceil(SF / 2)) // 60} min')
-    time.sleep(240 * math.ceil(SF / 2))
+    print(f'Data populated waiting for {(420 * math.ceil(SF / 2)) // 60} min')
+    time.sleep(420 * math.ceil(SF / 2))
     print(f"Freshness will be measured after {freshness_per_txn} transactions")
     manager = multiprocessing.Manager()
     shared_state = manager.Namespace()
@@ -298,13 +301,14 @@ if __name__ == '__main__':
     kafka_output_consumer.main(SAVE_DIR)
 
     print()
-    calculate_metrics.main(
+    calculate_metrics_hattrick.main(
         SAVE_DIR,
         messages_per_second,
         queries_per_second,
         warmup_seconds,
         txn_threads,
         query_threads,
-        SF
+        SF,
+        hat=False
     )
 

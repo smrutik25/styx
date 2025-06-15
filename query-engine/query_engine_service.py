@@ -21,7 +21,7 @@ from query_engine_handler import QueryEngineHandler
 KAFKA_URL: str = os.getenv('KAFKA_URL', "localhost:9092")
 QUERY_ENGINE_PORT: int = int(os.getenv('QUERY_ENGINE_PORT', 7000))
 QUERY_ENGINE_TOPIC: str = "styx-query-engine"
-MAX_CONCURRENCY: int = 50
+MAX_CONCURRENCY: int = 10
 
 
 class QueryEngineService(object):
@@ -172,7 +172,6 @@ class QueryEngineService(object):
         async with self.semaphore:
             try:
                 msg = msgpack_deserialization(kafka_message.value[2:])
-                logging.info(f"Received query {msg} from client")
                 res = await self.qe_handler.get_query_result(msg[0])
                 await self.kafka_query_result_producer.send_and_wait(f"{QUERY_ENGINE_TOPIC}--OUT",
                                                                      key=kafka_message.key,

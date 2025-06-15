@@ -53,7 +53,7 @@ async def consume(save_dir):
         freshness_queries = pd.read_csv(f"{save_dir}/freshness_queries.csv")["request_id"].tolist()
         freshness_queries = [ast.literal_eval(s) for s in freshness_queries]
         while True:
-            data = await consumer.getmany(timeout_ms=1_000)
+            data = await consumer.getmany(timeout_ms=10_000)
             if not data:
                 break
             for messages in data.values():
