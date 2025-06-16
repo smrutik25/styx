@@ -37,17 +37,15 @@ void Results::setAnalyticalThroughput(double& at){
 void Results::saveResults(bool frontier_calc) {
     fs::create_directory("results");	
     double tt = 0, at = 0, ft = 0;
-    if(totalQueries != 0){
-            at = (double)totalQueries/testDuration;
-    }	    
+    if(totalQueries != 0)
+        at = (double)totalQueries/testDuration;
     setAnalyticalThroughput(at);
-    if(totalTxns != 0){
-            tt = (double)totalTxns/UserInput::getTestDuration();
-    }
-    if ((totalFailedTxns + totalTxns) != 0){
+    if(totalTxns != 0)
+        tt = (double)totalTxns/UserInput::getTestDuration();
+    if ((totalFailedTxns + totalTxns) != 0)
         ft = (double)totalFailedTxns/(totalFailedTxns + totalTxns) * 100;
-    }
     setTransactionalThroughput(tt);
+
     resultsStream.open("results/results-SF"+to_string(UserInput::getSF())+".txt", ofstream::out | ofstream::app | ofstream::binary);
     resultsStream << "--------------------------------------------" << endl;
     resultsStream << "Available threads in the system: " << thread::hardware_concurrency() << endl;
@@ -87,6 +85,12 @@ void Results::saveResults(bool frontier_calc) {
         resultsStream.open("results/txn-failures-SF"+to_string(UserInput::getSF())+".csv", ofstream::out | ofstream::app | ofstream::binary);
         resultsStream << ft << "," << totalFails << endl;
         resultsStream.close();
+        resultsStream.open("results/txn-latency-SF"+to_string(UserInput::getSF())+".csv", ofstream::out | ofstream::app | ofstream::binary);
+        resultsStream << txnLatencyAll << "," << txnLatencyAll95 << "," << txnLatencyAll99 << endl;
+        resultsStream.close();
+        resultsStream.open("results/ana-latency-SF"+to_string(UserInput::getSF())+".csv", ofstream::out | ofstream::app | ofstream::binary);
+        resultsStream << queryExecTimeAll << "," << queryExecTimeAll95 << "," << queryExecTimeAll99 << endl;
+        resultsStream.close();
     }
     if(UserInput::getAnalClients()>0){
     	resultsStream.clear();
@@ -104,27 +108,91 @@ void Results::saveResults(bool frontier_calc) {
 void Results::getQueryExecTime(vector<AnalyticalClient*>& a){
     double sum[13] = {0.0};
     int q[13] = {0};
+    std::vector<double> allExecTimes[13];
+    std::vector<double> combinedExecTimes;
     for(int i=0; i<UserInput::getAnalClients(); i++){
         for(int j=0; j<13; j++){
             sum[j] += a[i]->GetExecutionTimeSum(j);
             q[j] += a[i]->GetExecutionTimeSize(j);
+            const std::vector<double>& clientExecTimes = a[i]->GetExecutionTimes(j);
+            allExecTimes[j].insert(allExecTimes[j].end(),
+                                   clientExecTimes.begin(),
+                                   clientExecTimes.end());
+            combinedExecTimes.insert(combinedExecTimes.end(),
+                                     clientExecTimes.begin(),
+                                     clientExecTimes.end());
         }
     }
     for(int i=0; i<13; i++)
         queryExecTime[i] = (sum[i]*1e-9)/q[i];
+
+    if (!combinedExecTimes.empty()) {
+        double totalSum = 0.0;
+        for (const auto& val : combinedExecTimes) {
+            if (!std::isnan(val)) // check for NaN just in case
+                totalSum += val;
+        }
+        double averageAll = totalSum / combinedExecTimes.size();
+
+        std::sort(combinedExecTimes.begin(), combinedExecTimes.end());
+
+        int idx95 = static_cast<int>(0.95 * combinedExecTimes.size());
+        if(idx95 >= combinedExecTimes.size()) idx95 = combinedExecTimes.size() - 1;
+
+        int idx99 = static_cast<int>(0.99 * combinedExecTimes.size());
+        if(idx99 >= combinedExecTimes.size()) idx99 = combinedExecTimes.size() - 1;
+
+        queryExecTimeAll = averageAll*1e-9;
+        queryExecTimeAll95 = combinedExecTimes[idx95]*1e-9;
+        queryExecTimeAll99 = combinedExecTimes[idx99]*1e-9;
+    } else {
+        queryExecTimeAll = queryExecTimeAll95 = queryExecTimeAll99 = 0.0;
+    }
+
 }
 
 void Results::getTxnLatency(vector<TransactionalClient*>& t){
     double sum[3] = {0.0};
     int tran[3] = {0};
+    std::vector<double> allLatencies[3];
+    std::vector<double> combinedLatencies;
     for(int i=0; i<UserInput::getTranClients(); i++) {
         for(int j=0; j<3; j++){
             sum[j] +=  t[i]->GetLatencySum(j+1);
             tran[j] += t[i]->GetLatencySize(j+1);
+            const std::vector<double>& clientLatencies = t[i]->GetLatencies(j + 1);
+            allLatencies[j].insert(allLatencies[j].end(),
+                                   clientLatencies.begin(),
+                                   clientLatencies.end());
+            combinedLatencies.insert(combinedLatencies.end(),
+                                     clientLatencies.begin(),
+                                     clientLatencies.end());
         }
     }
     for(int i=0; i<3; i++)
-        txnLatency[i] = (sum[i]*1e-9)/tran[i];
+            txnLatency[i] = (sum[i]*1e-9)/tran[i];
+    if (!combinedLatencies.empty()) {
+        double totalSum = 0.0;
+        for (const auto& val : combinedLatencies) {
+            if (!std::isnan(val)) // handle possible NaNs
+                totalSum += val;
+        }
+        double averageAll = totalSum / combinedLatencies.size();
+
+        std::sort(combinedLatencies.begin(), combinedLatencies.end());
+
+        int idx95 = static_cast<int>(0.95 * combinedLatencies.size());
+        if(idx95 >= combinedLatencies.size()) idx95 = combinedLatencies.size() - 1;
+
+        int idx99 = static_cast<int>(0.99 * combinedLatencies.size());
+        if(idx99 >= combinedLatencies.size()) idx99 = combinedLatencies.size() - 1;
+
+        txnLatencyAll = averageAll*1e-9;
+        txnLatencyAll95 = combinedLatencies[idx95]*1e-9;
+        txnLatencyAll99 = combinedLatencies[idx99]*1e-9;
+    } else {
+        txnLatencyAll = txnLatencyAll95 = txnLatencyAll99 = 0.0;
+    }
 }
 
 void Results::getFreshness(vector<AnalyticalClient*>& a){

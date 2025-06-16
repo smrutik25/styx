@@ -148,35 +148,6 @@ int TransactionalClient::PaymentTransactionSP(SQLHDBC& dbc){
     else return 0;
 }
 
-int TransactionalClient::CountOrdersTransactionSP(SQLHDBC& dbc){
-    int tries = 0;
-    int custkey =  DataSrc::uniformIntDist(1, UserInput::getCustSize());
-    ostringstream ckey;
-    [[maybe_unused]] int ret = -1;
-    ckey << setw(9) << setfill('0') << custkey;
-    string custName = "Customer#" + ckey.str();
-    char* c_name = &custName[0];    // get random customer name
-    int client_num = GetClientNum();
-    int txn_num = GetLocalCounter();
-    string table = "FRESHNESS";
-    char* tableName = &(table.append(to_string(client_num)))[0];
-    SQLAllocHandle(SQL_HANDLE_STMT, dbc, &GetTransactionStmt());
-    Driver::bindCharParam(GetTransactionStmt(), c_name, 26, 1);
-    Driver::bindCharParam(GetTransactionStmt(), tableName, 0, 2);
-    Driver::bindIntParam(GetTransactionStmt(), txn_num, 3);
-    while(ret != 0){
-    	ret = Driver::executeStmtDiar(GetTransactionStmt(), SQLDialect::transactionalQueries[UserInput::getdbChoice()][2].c_str());
-    	if(ret != 0){
-    	    IncrementTotalFailCounter();
-    	}
-    	tries++ ;
-    	if(tries >= numTries) break;
-    }	
-    Driver::freeStmtHandle(GetTransactionStmt());
-    if (ret == 0) return 1;
-    else return 0;
-}
-
 SQLHSTMT& TransactionalClient::GetTransactionStmt(){
     return tStmt;
 }
@@ -218,6 +189,10 @@ double TransactionalClient::GetLatencySum(int tType){
 
 int TransactionalClient::GetLatencySize(int tType){
     return latencyVector[tType-1].size();
+}
+
+std::vector<double>& TransactionalClient::GetLatencies(int tType){
+    return latencyVector[tType-1];
 }
 
 void TransactionalClient::IncrementLocalCounter(){

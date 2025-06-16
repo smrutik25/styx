@@ -26,6 +26,12 @@ private:
     double t_throughput = 0.0;
     double a_throughput = 0.0;
     int numTxn[3] = {0};
+    double txnLatencyAll;
+    double txnLatencyAll95;
+    double txnLatencyAll99;
+    double queryExecTimeAll;
+    double queryExecTimeAll95;
+    double queryExecTimeAll99;
 public:
     void setTotalQueries(vector<AnalyticalClient*>& a);
     void setTotalTxns(vector<TransactionalClient*>& t);

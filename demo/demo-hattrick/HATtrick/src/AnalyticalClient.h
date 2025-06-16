@@ -22,7 +22,6 @@ private:
     int testDuration;
     const int numTries = 3;
     long startTime;    // start time of the current analytical query, different for each A client
-
 public:
     AnalyticalClient();
     void SetThreadNum(thread::id num);
@@ -37,6 +36,7 @@ public:
     void SetExecutionTime(double execTime, int qType);
     double GetExecutionTimeSum(int qType);
     int GetExecutionTimeSize(int qType);
+    const std::vector<double>& GetExecutionTimes(int queryType) const;
     void GetFreshnessSnapshot(Globals* g);
     void SetTestDuration(int duration);
     int GetTestDuration();

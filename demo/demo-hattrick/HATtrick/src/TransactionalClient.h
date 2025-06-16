@@ -18,7 +18,6 @@ private:
     thread::id threadNum;           // id of thread
     int loOrderKey;                 // current lo_orderkey
     SQLHSTMT tStmt = 0;             // for stored procedures
-//    vector<SQLHSTMT> ptStmt = {vector<SQLHSTMT>(SQLDialect::transactionalCommands.size(), 0)}; // for prepared statements
     SQLHSTMT freshStmt = 0;
     int clientNum = 0;              
     vector<vector<double>> latencyVector = vector<vector<double>>(3);    // history of response time for the 3 transactions
@@ -31,8 +30,6 @@ public:
     TransactionalClient();
     int NewOrderTransactionPS(SQLHDBC& dbc);   // NewOrder txn w/ store procedures for PostgreSQL
     int PaymentTransactionSP(SQLHDBC& dbc);    // Payment txn w/ stored procedures, same for PostgreSQL and SQL Server
-    int CountOrdersTransactionSP(SQLHDBC& dbc); // CountOrders txn w/ stored procedures, same for PostgreSQL and SQL Server
-    void CountOrdersTransaction(SQLHDBC& dbc);   // CountOrders txn w/ prepared statements, same for all DBs
     SQLHSTMT& GetTransactionStmt();
     void SetLoOrderKey(int& num);
     int& GetLoOrderKey();
@@ -43,6 +40,7 @@ public:
     void SetLatency(double latency, int tType);
     double GetLatencySum(int tType);
     int GetLatencySize(int tType);
+    std::vector<double>& GetLatencies(int tType);
     void IncrementLocalCounter();
     int& GetLocalCounter();
     void IncrementFailCounter();

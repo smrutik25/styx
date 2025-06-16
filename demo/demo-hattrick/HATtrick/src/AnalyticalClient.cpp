@@ -123,6 +123,9 @@ int AnalyticalClient::GetExecutionTimeSize(int qType){
     return executionTime[qType].size();
 }
 
+const std::vector<double>& AnalyticalClient::GetExecutionTimes(int qType) const {
+    return executionTime[qType];
+}
 
 void AnalyticalClient::SetTestDuration(int duration){
     testDuration = duration;
