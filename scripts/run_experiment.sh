@@ -34,10 +34,11 @@ elif [[ $workload_name == "tpcc" ]]; then
     python demo/demo-tpc-c/pure_kafka_demo.py "$saving_dir" "$client_threads" "$n_part" "$input_rate" "$total_time" "$warmup_seconds" "$n_keys"
 elif [[ $workload_name == "ssb" ]]; then
     # SSB for HATtrick
-#    bash scripts/generate_ssb_dataset.sh "$n_keys"
+    bash scripts/generate_ssb_dataset.sh "$n_keys"
     python demo/demo-hattrick/pure_kafka_demo.py "$saving_dir" "$client_threads" "$n_part" "$input_rate" "$total_time" "$warmup_seconds" "$n_keys" "$query_threads" "$query_rate"
 elif [[ $workload_name == "hat" ]]; then
     # HATtrick Benchmark
+    bash scripts/generate_ssb_dataset.sh "$n_keys"
     python demo/demo-hattrick/hattrick.py "$n_part" "$total_time" "$warmup_seconds" "$n_keys" "$saving_dir"
 else
     echo "Benchmark not supported!"
