@@ -179,7 +179,6 @@ def transactional_benchmark_runner(args) -> (dict[bytes, dict], dict[bytes, dict
     hattrick_generator = hattrick_transaction_generator(proc_num, shared_state)
     timestamp_futures: dict[bytes, dict] = {}
     time.sleep(5)
-    start = timer()
     for cur_sec in range(seconds):
         sec_start = timer()
         for i in range(messages_per_second):
@@ -197,10 +196,6 @@ def transactional_benchmark_runner(args) -> (dict[bytes, dict], dict[bytes, dict
         lps = sec_end - sec_start
         if lps < 1:
             time.sleep(1 - lps)
-        sec_end2 = timer()
-        print(f'Transaction latency per second: {sec_end2 - sec_start}')
-    end = timer()
-    print(f'Average transaction latency per second: {(end - start) / seconds}')
     styx.close()
     for key, metadata in styx.delivery_timestamps.items():
         timestamp_futures[key]["timestamp"] = metadata
@@ -215,7 +210,6 @@ def analytical_benchmark_runner(args) -> (dict[bytes, dict], dict[bytes, dict]):
     hattrick_generator = hattrick_query_generator(shared_state)
     timestamp_futures: dict[bytes, dict] = {}
     time.sleep(5)
-    start = timer()
     for cur_sec in range(seconds):
         sec_start = timer()
         for i in range(queries_per_second):
@@ -229,10 +223,6 @@ def analytical_benchmark_runner(args) -> (dict[bytes, dict], dict[bytes, dict]):
         lps = sec_end - sec_start
         if lps < 1:
             time.sleep(1 - lps)
-        sec_end2 = timer()
-        print(f'Analytical latency per second: {sec_end2 - sec_start}')
-    end = timer()
-    print(f'Average analytical latency per second: {(end - start) / seconds}')
     styx.close()
     for key, metadata in styx.query_delivery_timestamps.items():
         timestamp_futures[key]["timestamp"] = metadata
@@ -255,8 +245,8 @@ def main():
     init_styx(styx_client)
     del styx_client
     # Sleep so that the init is surely done (snapshot buckets and duckdb)
-    print(f'Data populated waiting for {(420 * math.ceil(SF / 2)) // 60} min')
-    time.sleep(420 * math.ceil(SF / 2))
+    print(f'Data populated waiting for {(300 * math.ceil(SF / 2)) // 60} min')
+    time.sleep(300 * math.ceil(SF / 2))
     print(f"Freshness will be measured after {freshness_per_txn} transactions")
     manager = multiprocessing.Manager()
     shared_state = manager.Namespace()

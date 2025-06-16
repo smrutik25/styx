@@ -79,7 +79,7 @@ def main(
                 throughput[bucket_id] += 1
 
         throughput_vals = list(throughput.values())
-        total_time = (max(output_msgs['timestamp']) - min(input_msgs['timestamp'])) // granularity
+        total_time = (max(joined['timestamp_output']) - min(joined['timestamp_client'])) // granularity
 
         req_ids = output_msgs['request_id']
         dup = output_msgs[req_ids.isin(req_ids[req_ids.duplicated()])].sort_values("request_id")
@@ -104,9 +104,10 @@ def main(
         res_dict["missed messages"] = missed
         res_dict["transactional_throughput"] = {
             "max": max(throughput_vals),
-            "avg": sum(throughput_vals) / total_time,
+            "avg": sum(throughput_vals) / len(throughput_vals),
             "TPS": throughput_vals
         }
+        res_dict["transactions_processed_per_second"] = len(joined) / total_time
         res_dict["duplicate_messages"] = len(dup)
 
     if query_rate:
@@ -143,7 +144,7 @@ def main(
                 throughput[bucket_id] += 1
 
         query_throughput_vals = list(throughput.values())
-        total_time = (max(output_queries['timestamp']) - min(input_queries['timestamp'])) // granularity
+        total_time = (max(joined_queries['timestamp_output']) - min(joined_queries['timestamp_client'])) // granularity
 
         req_ids = output_queries['request_id']
         dup_queries = output_queries[req_ids.isin(req_ids[req_ids.duplicated()])].sort_values("request_id")
@@ -169,9 +170,10 @@ def main(
         res_dict["missed queries"] = missed_queries
         res_dict["analytical_throughput"] = {
             "max": max(query_throughput_vals),
-            "avg": sum(query_throughput_vals) / total_time,
+            "avg": sum(query_throughput_vals)/len(query_throughput_vals),
             "TPS": query_throughput_vals
         }
+        res_dict["queries_processed_per_second"] = len(joined_queries) / total_time
         res_dict["duplicate_queries_resp"] = len(dup_queries)
 
         if freshness and "transactional_throughput" in res_dict:

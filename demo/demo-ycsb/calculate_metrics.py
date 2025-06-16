@@ -92,6 +92,7 @@ def main(
             throughput[bucket_id] += 1
 
     throughput_vals = list(throughput.values())
+    total_time = (max(joined['timestamp_output']) - min(joined['timestamp_client'])) // granularity
 
     req_ids = output_msgs['request_id']
     dup = output_msgs[req_ids.isin(req_ids[req_ids.duplicated()])].sort_values("request_id")
@@ -121,6 +122,7 @@ def main(
             "avg": sum(throughput_vals) / len(throughput_vals),
             "TPS": throughput_vals
         },
+        "transactions_processed_per_second": len(joined) / total_time,
         "duplicate_messages": len(dup)
     }
 
@@ -223,6 +225,7 @@ def main(
                 throughput[bucket_id] += 1
 
         throughput_vals = list(throughput.values())
+        total_time = (max(joined['timestamp_output']) - min(joined['timestamp_client'])) // granularity
 
         req_ids = output_msgs['request_id']
         dup = output_msgs[req_ids.isin(req_ids[req_ids.duplicated()])].sort_values("request_id")
@@ -251,6 +254,7 @@ def main(
                 "avg": sum(throughput_vals) / len(throughput_vals),
                 "TPS": throughput_vals
             },
+            "queries_processed_per_second": len(joined) / total_time,
             "duplicate_query_resp": len(dup)
         }
         res_dict.update(res_dict_analytical)
