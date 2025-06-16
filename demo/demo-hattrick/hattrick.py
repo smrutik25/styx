@@ -1,4 +1,5 @@
-# ./scripts/run_experiment.sh hat 300 1 4 0.0 1 60 results 10 1000 true 1 20
+# ./scripts/run_experiment.sh hat 300 1 4 0.0 1 60 results 10 100 true 1 20
+# ./scripts/run_experiment.sh hat 300 1 4 0.0 1 60 results 10 100 true 1 20
 
 import multiprocessing
 import os
@@ -130,13 +131,14 @@ def get_payment_transaction(front_end_key):
     params: dict[str, Any] = {
         "AMT": random.randint(50, 1000),
         "ORDERKEY": front_end_key,
-        "SUPPKEY": random.randint(1, supp_size)
+        "SUPPKEY": random.randint(1, supp_size),
+        "CUSTKEY": random.randint(1, cust_size)
     }
-    choice = random.randint(1, 100)
-    if choice <= 60:
-        params["CUSTNAME"] = f"Customer#{str(random.randint(1, cust_size)).zfill(9)}"
-    else:
-        params["CUSTKEY"] = random.randint(1, cust_size)
+    # choice = random.randint(1, 100)
+    # if choice <= 60:
+    #     params["CUSTNAME"] = f"Customer#{str(random.randint(1, cust_size)).zfill(9)}"
+    # else:
+    #     params["CUSTKEY"] = random.randint(1, cust_size)
     return payment_txn_operator, front_end_key, 'payment_txn', (params,)
 
 def hattrick_transaction_generator(proc_num, shared_state):
@@ -145,7 +147,7 @@ def hattrick_transaction_generator(proc_num, shared_state):
         front_end_key = proc_num + c
         coin = random.randint(1, 100)
         if c % freshness_per_txn == 0:
-            update_query(shared_state, front_end_key - (freshness_per_txn * 5), front_end_key)
+            update_query(shared_state, front_end_key - (freshness_per_txn * 3), front_end_key)
         if coin < 50:
             yield get_new_line_order_transaction(front_end_key)
         else:
@@ -263,8 +265,8 @@ def run_hybrid_load(save_dir, txn_per_second, txn_threads, queries_per_second, q
 
 
 async def find_txn_saturation(kafka_consumer):
-    tps_interval = 500
-    tps = 0
+    tps_interval = 200
+    tps = 800      # based on prev runs
     txn_threads = 1
     prev_throughput = -1
     print("Coarse throughput saturation calculation for transactions")
@@ -309,8 +311,8 @@ async def find_txn_saturation(kafka_consumer):
 
 
 async def find_analytical_saturation(kafka_consumer):
-    qps_interval = 5
-    qps = 0
+    qps_interval = 10
+    qps = 40
     query_threads = 1
     prev_throughput = -1
     print("Coarse throughput saturation calculation for queries")
@@ -322,7 +324,7 @@ async def find_analytical_saturation(kafka_consumer):
         run_hybrid_load(save_dir, 0, 1, qps, query_threads)
         await kafka_output_consumer_hattrick.main(save_dir, ana_consumer=kafka_consumer)
         throughput = calculate_metrics_hattrick.main(save_dir, 0, qps, warmup_seconds,
-                                            0, query_threads, SF, False)[1]
+                                                     0, query_threads, SF, False)[1]
         print(f"Throughput for qps {qps} is {throughput}")
         if prev_throughput >= 0 and throughput < prev_throughput * (1 + improvement_threshold):
             qps -= qps_interval
@@ -330,7 +332,7 @@ async def find_analytical_saturation(kafka_consumer):
         prev_throughput = throughput
         shutil.rmtree(save_dir, ignore_errors=True)
     print(f"Max input qps is around {qps}")
-    qps_interval = 1
+    qps_interval = 2
     max_qps = qps
     max_throughput = prev_throughput
     qps = max_qps
@@ -428,7 +430,6 @@ async def main():
     try:
         max_tps = await find_txn_saturation(txn_kafka_consumer)
         max_qps = await find_analytical_saturation(ana_kafka_consumer)
-        #TODO: Run ssb to find max_tps and max_qps, then plugin here
         await hattrick_benchmark(max_tps, max_qps, txn_kafka_consumer, ana_kafka_consumer)
     finally:
         await txn_kafka_consumer.stop()

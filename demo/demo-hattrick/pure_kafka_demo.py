@@ -1,5 +1,5 @@
-# SF1:  ./scripts/run_experiment.sh ssb 1000 1 4 0.0 1 60 results 10 1000 true 1 20
-# SF10:  ./scripts/run_experiment.sh ssb 1000 10 4 0.0 1 60 results 10 1000 true 1 20
+# SF1:  ./scripts/run_experiment.sh ssb 1000 1 4 0.0 1 60 results 10 100 true 1 20
+# SF10:  ./scripts/run_experiment.sh ssb 1000 10 4 0.0 1 60 results 10 100 true 1 20
 
 import multiprocessing
 import os
@@ -136,13 +136,14 @@ def get_payment_transaction(front_end_key):
     params: dict[str, Any] = {
         "AMT": random.randint(50, 1000),
         "ORDERKEY": front_end_key,
-        "SUPPKEY": random.randint(1, supp_size)
+        "SUPPKEY": random.randint(1, supp_size),
+        "CUSTKEY": random.randint(1, cust_size)
     }
-    choice = random.randint(1, 100)
-    if choice <= 60:
-        params["CUSTNAME"] = f"Customer#{str(random.randint(1, cust_size)).zfill(9)}"
-    else:
-        params["CUSTKEY"] = random.randint(1, cust_size)
+    # choice = random.randint(1, 100)
+    # if choice <= 60:
+    #     params["CUSTNAME"] = f"Customer#{str(random.randint(1, cust_size)).zfill(9)}"
+    # else:
+    #     params["CUSTKEY"] = random.randint(1, cust_size)
     return payment_txn_operator, front_end_key, 'payment_txn', (params,)
 
 
@@ -152,7 +153,7 @@ def hattrick_transaction_generator(proc_num, shared_state):
         front_end_key = proc_num + c
         coin = random.randint(1, 100)
         if c % freshness_per_txn == 0:
-            update_query(shared_state, front_end_key - (freshness_per_txn * 5), front_end_key)
+            update_query(shared_state, front_end_key - (freshness_per_txn * 3), front_end_key)
         if coin < 50:
             yield get_new_line_order_transaction(front_end_key)
         else:
