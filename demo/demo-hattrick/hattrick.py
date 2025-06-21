@@ -58,10 +58,10 @@ date_list = [(start_date + timedelta(days=x)).strftime('%B %-d, %Y') for x in ra
 script_path = os.path.dirname(os.path.realpath(__file__))
 freshness_per_txn = 500
 
-if SF == 10:
-    data_file_path = "HATtrick/datagen_sf10"
-else:
-    data_file_path = "HATtrick/datagen"
+# if SF == 10:
+#     data_file_path = "HATtrick/datagen_sf10"
+# else:
+data_file_path = "HATtrick/datagen"
 
 
 g = StateflowGraph('hattrick_benchmark', operator_state_backend=LocalStateBackend.DICT)
@@ -265,7 +265,7 @@ def run_hybrid_load(save_dir, txn_per_second, txn_threads, queries_per_second, q
 
 
 async def find_txn_saturation(kafka_consumer):
-    tps_interval = 200
+    tps_interval = 100
     tps = 800      # based on prev runs
     txn_threads = 1
     prev_throughput = -1
@@ -281,7 +281,8 @@ async def find_txn_saturation(kafka_consumer):
                                                      txn_threads, 0, SF, False)[0]
         print(f"Throughput for tps {tps} is {throughput}")
         if prev_throughput >= 0 and throughput < prev_throughput * (1 + improvement_threshold):
-            tps -= tps_interval
+            if throughput <= prev_throughput:
+                tps -= tps_interval
             break
         prev_throughput = throughput
         shutil.rmtree(save_dir, ignore_errors=True)
@@ -302,6 +303,8 @@ async def find_txn_saturation(kafka_consumer):
                                                      txn_threads, 0, SF, False)[0]
         print(f"Throughput for tps {tps} is {throughput}")
         if throughput < max_throughput * (1 + improvement_threshold):
+            if throughput <= prev_throughput:
+                tps -= tps_interval
             break
         max_tps = tps
         max_throughput = throughput
@@ -311,8 +314,8 @@ async def find_txn_saturation(kafka_consumer):
 
 
 async def find_analytical_saturation(kafka_consumer):
-    qps_interval = 10
-    qps = 40
+    qps_interval = 5
+    qps = 5
     query_threads = 1
     prev_throughput = -1
     print("Coarse throughput saturation calculation for queries")
@@ -348,11 +351,13 @@ async def find_analytical_saturation(kafka_consumer):
                                             1, query_threads, SF, False)[1]
         print(f"Throughput for qps {qps} is {throughput}")
         if throughput < max_throughput * (1 + improvement_threshold):
+            if throughput <= prev_throughput:
+                qps -= qps_interval
             break
         max_qps = qps
         max_throughput = throughput
         shutil.rmtree(save_dir, ignore_errors=True)
-    print(f"Max input tps is {max_qps}")
+    print(f"Max input qps is {max_qps}")
     return max_qps
 
 

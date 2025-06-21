@@ -29,7 +29,6 @@ class Operator(BaseOperator):
         self.__schema: list[ColumnSchema] = []
         self.__deployed_graph = None
         self.__run_func_lock: asyncio.Lock = asyncio.Lock()
-        self.__schema: list[ColumnSchema] = []
 
     def get_partitioner(self) -> HashPartitioner:
         return self.__partitioner
