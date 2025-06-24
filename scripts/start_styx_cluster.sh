@@ -20,6 +20,10 @@ docker compose build --build-arg epoch_size="$epoch_size" --build-arg 'max_opera
 QUERY_ENGINE="$query_engine" docker compose up --scale worker="$threaded_scale_factor" -d
 sleep 5
 if [ "$query_engine" = true ]; then
+  data_volume_directory=query-engine/data #this must correspond to query engine volume mount in docker-compose
+  rm -rf $data_volume_directory
+  mkdir $data_volume_directory
+  chmod 777 $data_volume_directory
   docker compose -f docker-compose-query-engine.yml build
   docker compose -f docker-compose-query-engine.yml up -d
 fi

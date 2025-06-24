@@ -22,6 +22,7 @@ KAFKA_URL: str = os.getenv('KAFKA_URL', "localhost:9092")
 QUERY_ENGINE_PORT: int = int(os.getenv('QUERY_ENGINE_PORT', 7000))
 QUERY_ENGINE_TOPIC: str = "styx-query-engine"
 MAX_CONCURRENCY: int = 10
+STATEFLOW_FILE_PATH: str = f"{os.getenv('DATABASE_FILE_PATH', 'data')}/stateflow_graph.json"
 
 
 class QueryEngineService(object):
@@ -56,6 +57,8 @@ class QueryEngineService(object):
             case MessageType.SendExecutionGraph:
                 message = self.networking.decode_message(data)
                 logging.warning(f"Query engine received execution graph")
+                with open(STATEFLOW_FILE_PATH, "wb") as sf:
+                    sf.write(data)
                 await self.qe_handler.stateflow_graph_to_tables(message[0])
                 await self.qe_handler.init_data("0")
                 await self.kafka_producer_create_topics()
@@ -124,7 +127,8 @@ class QueryEngineService(object):
                 await asyncio.sleep(5)
         self.kafka_query_consumer = AIOKafkaConsumer(auto_offset_reset='earliest',
                                                      bootstrap_servers=[KAFKA_URL],
-                                                     client_id="QueryEngineConsumer")
+                                                     client_id="QueryEngineConsumer",
+                                                     group_id="QueryEngineGroup")
 
     async def _kafka_consumer_start(self):
         await self._kafka_producer_ready()
@@ -168,6 +172,15 @@ class QueryEngineService(object):
             except asyncio.TimeoutError:
                 await asyncio.sleep(5)
 
+    async def recovery_init(self):
+        with open(STATEFLOW_FILE_PATH, "rb") as sf:
+            message = self.networking.decode_message(sf.read())
+        await self.qe_handler.stateflow_graph_to_tables(message[0])
+        logging.warning("Restarted query engine")
+        await self.kafka_producer_create_topics()
+        await self.kafka_consumer_subscribe_topic()
+        self.duckdb_ready.set()
+
     async def handle_client_query(self, kafka_message):
         async with self.semaphore:
             try:
@@ -197,8 +210,15 @@ class QueryEngineService(object):
             await self.kafka_query_consumer.stop()
 
     async def main(self):
-        self.kafka_consumer_task = asyncio.create_task(self.consume_queries())
-        await self.start_tcp_service()
+        try:
+            if await self.qe_handler.recovery_mode():
+                logging.warning("Recovery initiated")
+                await self.recovery_init()
+            logging.warning("Recovery check done, resuming tasks")
+            self.kafka_consumer_task = asyncio.create_task(self.consume_queries())
+            await self.start_tcp_service()
+        finally:
+            self.qe_handler.close_connection()
 
 
 if __name__ == '__main__':

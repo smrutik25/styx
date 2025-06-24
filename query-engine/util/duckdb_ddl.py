@@ -10,6 +10,10 @@ class QueryEngineTables:
         self.__tables: dict = {}
         self.__table_indexes: dict = {}
         self.__operators: list = []
+        self.__is_recovery: bool = False
+
+    def set_recovery_mode(self):
+        self.__is_recovery = True
 
     @property
     def tables(self):
@@ -59,12 +63,8 @@ class QueryEngineTables:
                 self.create_table(column.unnest_table_name, column.nested_column_mapping, table_type="nested")
         return column_names, df_column_names, column_definitions, primary_keys
 
-    def _create_table_in_duckdb(self, table_name: str, column_definitions: list[str],
-                                primary_keys: list[str] = None) -> None:
-        pk_constraint = ""
-        if primary_keys:
-            self.__table_indexes[table_name] = primary_keys
-        create_table_sql = f"""CREATE TABLE IF NOT EXISTS '{table_name}' ({', '.join(column_definitions)}{pk_constraint});"""
+    def _create_table_in_duckdb(self, table_name: str, column_definitions: list[str]) -> None:
+        create_table_sql = f"""CREATE TABLE IF NOT EXISTS '{table_name}' ({', '.join(column_definitions)});"""
         self.db_con.execute(create_table_sql)
 
     def add_constraints(self):
@@ -75,6 +75,7 @@ class QueryEngineTables:
                 self.db_con.execute(add_pk_sql)
 
     def create_table(self, table_name: str, columns: ColumnSchema, table_type: str = "base"):
+        logging.warning(f"Recovery mode = {self.__is_recovery}")
         if table_type == "base":
             self.__tables[table_name] = {}
             column_names, df_column_names, column_definitions, primary_keys = (
@@ -86,8 +87,11 @@ class QueryEngineTables:
         else:
             column_names, df_column_names, column_definitions, primary_keys = (
                 self._create_column_definitions(table_name, columns))
-        logging.warning(f"Creating table: {table_name}")
-        self._create_table_in_duckdb(table_name, column_definitions, primary_keys)
+        if primary_keys:
+            self.__table_indexes[table_name] = primary_keys
+        if not self.__is_recovery:
+            logging.warning(f"Creating table: {table_name}")
+            self._create_table_in_duckdb(table_name, column_definitions)
 
     async def describe_table(self, table_name):
         return self.db_con.sql(f"""DESC '{table_name}';""")
