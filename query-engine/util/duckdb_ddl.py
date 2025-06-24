@@ -75,7 +75,6 @@ class QueryEngineTables:
                 self.db_con.execute(add_pk_sql)
 
     def create_table(self, table_name: str, columns: ColumnSchema, table_type: str = "base"):
-        logging.warning(f"Recovery mode = {self.__is_recovery}")
         if table_type == "base":
             self.__tables[table_name] = {}
             column_names, df_column_names, column_definitions, primary_keys = (
@@ -89,6 +88,8 @@ class QueryEngineTables:
                 self._create_column_definitions(table_name, columns))
         if primary_keys:
             self.__table_indexes[table_name] = primary_keys
+        else:
+            self.__table_indexes[table_name] = []
         if not self.__is_recovery:
             logging.warning(f"Creating table: {table_name}")
             self._create_table_in_duckdb(table_name, column_definitions)

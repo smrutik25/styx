@@ -51,3 +51,13 @@ class QueryEngineReadWrite:
             logging.error(f"Error in duckdb read: {e}")
         finally:
             read_cursor.close()
+
+    def execute_query(self, query):
+        cursor = self.db_con.cursor()
+        try:
+            cursor.execute(query)
+            cursor.commit()
+        except Exception as e:
+            logging.error(f"Error in duckdb recovery query: {e}")
+        finally:
+            cursor.close()

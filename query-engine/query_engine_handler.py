@@ -17,6 +17,8 @@ MINIO_URL: str = f"{os.environ['MINIO_HOST']}:{os.environ['MINIO_PORT']}"
 MINIO_ACCESS_KEY: str = os.environ['MINIO_ROOT_USER']
 MINIO_SECRET_KEY: str = os.environ['MINIO_ROOT_PASSWORD']
 CHUNK_SIZE = 1000000
+RECOVERY_TABLE = "recovery"
+RECOVERY_COLUMN = "last_snapshot"
 
 
 class QueryEngineHandler:
@@ -45,6 +47,7 @@ class QueryEngineHandler:
             for operator_name, operator in iter(stateflow_graph):
                 if operator.schema:
                     self.qe_ddl.create_table(operator_name, operator.schema)
+            self.qe_readwrite.execute_query(f"CREATE TABLE IF NOT EXISTS {RECOVERY_TABLE} ({RECOVERY_COLUMN} INT)")
             created_tables = await self.qe_ddl.fetch_created_tables()
             logging.warning(f"Tables in database: {", ".join(created_tables)}")
         except Exception as e:
@@ -112,18 +115,29 @@ class QueryEngineHandler:
         logging.warning("Loaded init data, creating indexes")
         self.qe_ddl.add_constraints()
         logging.warning(f"Added indexes, took {time.perf_counter() - start_time}s")
+        self.qe_readwrite.execute_query(f"INSERT INTO {RECOVERY_TABLE} ({RECOVERY_COLUMN}) VALUES (0)")
+
+    async def _check_prev_snapshot(self, snapshot_id: str):
+        current_snapshot = int(snapshot_id)
+        prev_snapshot = self.qe_readwrite.read_from_table(f"SELECT * FROM {RECOVERY_TABLE}")[0][0]
+        while current_snapshot > prev_snapshot + 1:
+            await self.load_snapshots(prev_snapshot + 1)
+            prev_snapshot += 1
+            logging.warning(f"Loaded previous snapshot in recovery: {prev_snapshot}")
 
     async def load_snapshots(self, snapshot_id: str) -> None:
+        await self._check_prev_snapshot(snapshot_id)
         minio_client = MinioReader(self.minio_client, snapshot_id)
         operator_list = self.qe_ddl.operators
         await minio_client.identify_minio_delta(operator_list)
         snapshot_data = {}
-        for operator in self.qe_ddl.operators:
+        for operator in operator_list:
             snapshot_data[operator] = await minio_client.deserialize_snapshots(operator)
         df_data = await self.deserialized_data_to_df(snapshot_data)
         tables = self.qe_ddl.tables
         if df_data:
             self.qe_readwrite.write_to_table(df_data, tables)
+        self.qe_readwrite.execute_query(f"UPDATE {RECOVERY_TABLE} SET {RECOVERY_COLUMN} = {int(snapshot_id)}")
 
     async def get_query_result(self, query: str):
         # TODO: User can define format of read output
