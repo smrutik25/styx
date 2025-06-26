@@ -171,7 +171,7 @@ def main(
         res_dict["analytical_throughput"] = {
             "max": max(query_throughput_vals),
             "avg": sum(query_throughput_vals)/len(query_throughput_vals),
-            "TPS": query_throughput_vals
+            "QPS": query_throughput_vals
         }
         res_dict["queries_processed_per_second"] = len(joined_queries) / total_time
         res_dict["duplicate_queries_resp"] = len(dup_queries)

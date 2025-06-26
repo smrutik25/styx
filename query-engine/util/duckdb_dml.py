@@ -1,8 +1,6 @@
 import duckdb
 import logging
-import pandas as pd
-
-from .duckdb_ddl import QueryEngineTables
+import polars as pl
 
 
 class QueryEngineReadWrite:
@@ -17,7 +15,7 @@ class QueryEngineReadWrite:
         return (f"{insert_str} {table_name} ({",".join(tables[table_name]["columns"])}) "
                 f"SELECT {",".join(tables[table_name]["df_columns"])} FROM df")
 
-    def init_data(self, df: pd.DataFrame, table_name: str, tables: dict) -> None:
+    def init_data(self, df: pl.DataFrame, table_name: str, tables: dict) -> None:
         write_cursor = self.db_con.cursor()
         try:
             query = self._generate_query(table_name, tables, data_init=True)
@@ -28,7 +26,7 @@ class QueryEngineReadWrite:
         finally:
             write_cursor.close()
 
-    def write_to_table(self, data: dict[str, pd.DataFrame], tables: dict) -> None:
+    def write_to_table(self, data: dict[str, pl.DataFrame], tables: dict) -> None:
         write_cursor = self.db_con.cursor()
         try:
             write_cursor.begin()

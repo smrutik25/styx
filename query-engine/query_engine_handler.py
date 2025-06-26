@@ -4,7 +4,7 @@ import time
 
 import duckdb
 import logging
-import pandas as pd
+import polars as pl
 import numpy as np
 from minio import Minio
 from styx.common.stateflow_graph import StateflowGraph
@@ -54,27 +54,36 @@ class QueryEngineHandler:
             logging.error(f"Error creating tables: {e}")
 
     @staticmethod
-    async def _split_index(df: pd.DataFrame, composite_key: list):
-        df[composite_key] = df['index'].str.split(':', expand=True)
-        df = df.drop(columns=['index'])
+    def _split_index(df: pl.DataFrame, composite_key: list) -> pl.DataFrame:
+        df = df.with_columns(
+            pl.col("index")
+            .str.split_exact(":", len(composite_key) - 1)
+            .alias("composite_struct")
+            .struct.rename_fields(composite_key)
+        )
+        df = df.unnest("composite_struct")
+        df = df.drop("index")
         return df
 
-    async def _create_df(self, data, table_name, table_index):
+    def _create_df(self, data, table_name, table_index) -> pl.DataFrame:
+        columns = self.qe_ddl.tables[table_name]["columns"]
         if not len(data):
-            df = pd.DataFrame(list(data.items()), columns=self.qe_ddl.tables[table_name]["columns"])
+            df = pl.DataFrame(data=[], schema=columns)
         else:
             first_value = next(iter(data.values()))
             if isinstance(first_value, dict):
-                df = pd.DataFrame.from_dict(data, orient="index").reset_index()
+                df = pl.DataFrame([{"index": k, **v} for k, v in data.items()])
             else:
-                df = pd.DataFrame(list(data.items()), columns=self.qe_ddl.tables[table_name]["columns"])
+                df = pl.DataFrame([dict(zip(columns, row)) for row in data.items()])
+
             if len(table_index) > 1:
-                df = await self._split_index(df, table_index)
+                df = self._split_index(df, table_index)
             else:
-                df = df.rename(columns={'index': table_index[0]})
+                df = df.rename({"index": table_index[0]})
+
         return df
 
-    async def deserialized_data_to_df(self, snapshot_data: dict[str, dict]) -> dict[str, pd.DataFrame] | None:
+    async def deserialized_data_to_df(self, snapshot_data: dict[str, dict]) -> dict[str, pl.DataFrame] | None:
         indexes = self.qe_ddl.table_indexes
         tables = self.qe_ddl.tables
         df_data = {}
@@ -85,7 +94,7 @@ class QueryEngineHandler:
             data = snapshot_data[table_name]
             table_index = indexes[table_name]
             logging.warning(f"Table: {table_name}, rows to upsert: {len(data)}")
-            df = await self._create_df(data, table_name, table_index)
+            df = self._create_df(data, table_name, table_index)
             df_data[table_name] = df
         return df_data
 
@@ -101,13 +110,13 @@ class QueryEngineHandler:
                 await asyncio.sleep(0)
                 logging.warning(f"Table: {operator}, rows to insert: {len(partition_data)}")
                 start_time = time.perf_counter()
-                df_data = await self._create_df(partition_data, operator, table_index)
-                if not df_data.empty:
+                df_data = self._create_df(partition_data, operator, table_index)
+                if df_data.height > 0:
                     end_time = time.perf_counter()
                     logging.warning(f"Dataframe created, took {end_time - start_time}s, inserting into table")
-                    num_chunks = int(np.ceil(len(df_data) / CHUNK_SIZE))
+                    num_chunks = int(np.ceil(df_data.height / CHUNK_SIZE))
                     for i in range(num_chunks):
-                        chunk = df_data.iloc[i * CHUNK_SIZE: (i + 1) * CHUNK_SIZE]
+                        chunk = df_data.slice(i * CHUNK_SIZE, CHUNK_SIZE)
                         self.qe_readwrite.init_data(chunk, operator, tables)
                         logging.warning(
                             f"Inserted into table, took {time.perf_counter() - end_time}s")
