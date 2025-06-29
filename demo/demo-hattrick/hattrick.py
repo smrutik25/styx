@@ -265,8 +265,8 @@ def run_hybrid_load(save_dir, txn_per_second, txn_threads, queries_per_second, q
 
 
 async def find_txn_saturation(kafka_consumer):
-    tps_interval = 100
-    tps = 800      # based on prev runs
+    tps_interval = 50
+    tps = 500
     txn_threads = 1
     prev_throughput = -1
     print("Coarse throughput saturation calculation for transactions")
@@ -278,7 +278,7 @@ async def find_txn_saturation(kafka_consumer):
         run_hybrid_load(save_dir, tps, txn_threads, 0, 1)
         await kafka_output_consumer_hattrick.main(save_dir, txn_consumer=kafka_consumer)
         throughput = calculate_metrics_hattrick.main(save_dir, tps, 0, warmup_seconds,
-                                                     txn_threads, 0, SF, False)[0]
+                                                     txn_threads, 0, SF, False, sat=True)[0]
         print(f"Throughput for tps {tps} is {throughput}")
         if prev_throughput >= 0 and throughput < prev_throughput * (1 + improvement_threshold):
             if throughput <= prev_throughput:
@@ -287,7 +287,7 @@ async def find_txn_saturation(kafka_consumer):
         prev_throughput = throughput
         shutil.rmtree(save_dir, ignore_errors=True)
     print(f"Max input tps is around {tps}")
-    tps_interval = 50
+    tps_interval = 10
     max_tps = tps
     max_throughput = prev_throughput
     tps = max_tps
@@ -300,7 +300,7 @@ async def find_txn_saturation(kafka_consumer):
         run_hybrid_load(save_dir, tps, txn_threads, 0, 1)
         await kafka_output_consumer_hattrick.main(save_dir, txn_consumer=kafka_consumer)
         throughput = calculate_metrics_hattrick.main(save_dir, tps, 0, warmup_seconds,
-                                                     txn_threads, 0, SF, False)[0]
+                                                     txn_threads, 0, SF, False, sat=True)[0]
         print(f"Throughput for tps {tps} is {throughput}")
         if throughput < max_throughput * (1 + improvement_threshold):
             if throughput <= prev_throughput:
@@ -327,7 +327,7 @@ async def find_analytical_saturation(kafka_consumer):
         run_hybrid_load(save_dir, 0, 1, qps, query_threads)
         await kafka_output_consumer_hattrick.main(save_dir, ana_consumer=kafka_consumer)
         throughput = calculate_metrics_hattrick.main(save_dir, 0, qps, warmup_seconds,
-                                                     0, query_threads, SF, False)[1]
+                                                     0, query_threads, SF, False, sat=True)[1]
         print(f"Throughput for qps {qps} is {throughput}")
         if prev_throughput >= 0 and throughput < prev_throughput * (1 + improvement_threshold):
             qps -= qps_interval
@@ -348,7 +348,7 @@ async def find_analytical_saturation(kafka_consumer):
         run_hybrid_load(save_dir, 0, 1, qps, query_threads)
         await kafka_output_consumer_hattrick.main(save_dir, ana_consumer=kafka_consumer)
         throughput = calculate_metrics_hattrick.main(save_dir, 0, qps, warmup_seconds,
-                                            1, query_threads, SF, False)[1]
+                                            1, query_threads, SF, False, sat=True)[1]
         print(f"Throughput for qps {qps} is {throughput}")
         if throughput < max_throughput * (1 + improvement_threshold):
             if throughput <= prev_throughput:
@@ -427,8 +427,8 @@ async def main():
     init_styx(styx_client)
     del styx_client
     # Sleep so that the init is surely done (snapshot buckets and duckdb)
-    print(f'Data populated waiting for {(240 * math.ceil(SF / 2)) // 60} min')
-    time.sleep(240 * math.ceil(SF / 2))
+    print(f'Data populated waiting for {(180 * math.ceil(SF / 2)) // 60} min')
+    time.sleep(180 * math.ceil(SF / 2))
     print(f"Freshness will be measured after {freshness_per_txn} transactions")
     txn_kafka_consumer = await setup_kafka_txns()
     ana_kafka_consumer = await setup_kafka_query_engine()

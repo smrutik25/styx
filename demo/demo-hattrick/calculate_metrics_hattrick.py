@@ -42,7 +42,8 @@ def main(
         query_threads,
         sf,
         freshness=True,
-        hat=True):
+        hat=True,
+        sat=False):
     exp_name = f"hattrick_SF{sf}_{input_rate * client_threads}_{query_rate * query_threads}"
     res_dict = {}
     if input_rate:
@@ -220,9 +221,14 @@ def main(
         with open(f'{save_dir}/{exp_name}.json', 'w', encoding='utf-8') as f:
             json.dump(res_dict, f, ensure_ascii=False, indent=4)
 
-    tps = res_dict["transactional_throughput"]["avg"] if "transactional_throughput" in res_dict else 0
-    qps = res_dict["analytical_throughput"]["avg"] if "analytical_throughput" in res_dict else 0
-    return tps, qps
+    if not sat:
+        tps = res_dict["transactional_throughput"]["avg"] if "transactional_throughput" in res_dict else 0
+        qps = res_dict["analytical_throughput"]["avg"] if "analytical_throughput" in res_dict else 0
+        return tps, qps
+    else:
+        txn_proc = res_dict["transactions_processed_per_second"] if "transactional_throughput" in res_dict else 0
+        query_proc = res_dict["queries_processed_per_second"] if "analytical_throughput" in res_dict else 0
+        return txn_proc, query_proc
 
 
 if __name__ == '__main__':

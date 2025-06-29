@@ -128,7 +128,11 @@ class QueryEngineService(object):
         self.kafka_query_consumer = AIOKafkaConsumer(auto_offset_reset='earliest',
                                                      bootstrap_servers=[KAFKA_URL],
                                                      client_id="QueryEngineConsumer",
-                                                     group_id="QueryEngineGroup")
+                                                     group_id="QueryEngineGroup",
+                                                     session_timeout_ms=60000,
+                                                     heartbeat_interval_ms=20000,
+                                                     max_poll_interval_ms=600000,
+                                                     enable_auto_commit=True)
 
     async def _kafka_consumer_start(self):
         await self._kafka_producer_ready()
