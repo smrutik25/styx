@@ -83,7 +83,7 @@ def main(
     # 1 second (ms) (i.e. bucket size)
     granularity = 1000
 
-    for t in output_msgs['timestamp']:
+    for t in joined['timestamp_output']:
         if t - start_time > granularity:
             bucket_id += 1
             start_time = t
@@ -216,7 +216,7 @@ def main(
         # 1 second (ms) (i.e. bucket size)
         granularity = 1000
 
-        for t in output_msgs['timestamp']:
+        for t in joined['timestamp_output']:
             if t - start_time > granularity:
                 bucket_id += 1
                 start_time = t

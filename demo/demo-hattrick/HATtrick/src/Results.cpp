@@ -91,7 +91,6 @@ void Results::saveResults(bool frontier_calc) {
         resultsStream.open("results/ana-latency-SF"+to_string(UserInput::getSF())+".csv", ofstream::out | ofstream::app | ofstream::binary);
         resultsStream << queryExecTimeAll << "," << queryExecTimeAll95 << "," << queryExecTimeAll99 << endl;
         resultsStream.close();
-    }
     if(UserInput::getAnalClients()>0){
     	resultsStream.clear();
     	resultsStream.open("results/freshness-SF"+to_string(UserInput::getSF())+"-"+
@@ -103,6 +102,8 @@ void Results::saveResults(bool frontier_calc) {
     	}
     	resultsStream.close();
     }
+    }
+
 }
 
 void Results::getQueryExecTime(vector<AnalyticalClient*>& a){

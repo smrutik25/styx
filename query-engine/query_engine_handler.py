@@ -74,6 +74,7 @@ class QueryEngineHandler:
             if isinstance(first_value, dict):
                 df = pl.DataFrame([{"index": k, **v} for k, v in data.items()])
             else:
+                columns = ["index"] + columns[1:]
                 df = pl.DataFrame([dict(zip(columns, row)) for row in data.items()])
 
             if len(table_index) > 1:

@@ -36,15 +36,11 @@ seconds = int(sys.argv[6])
 key_list: list[int] = list(range(N_ENTITIES))
 STYX_HOST: str = 'localhost'
 STYX_PORT: int = 8886
-# STYX_HOST: str = '35.229.80.128'
-# STYX_PORT: int = 8888
 KAFKA_URL = 'localhost:9092'
-# KAFKA_URL = '35.229.114.18:9094'
 SAVE_DIR: str = sys.argv[7]
 warmup_seconds: int = int(sys.argv[8])
 run_with_validation = sys.argv[9].lower() == 'true'
 hybrid_load = sys.argv[10].lower() == 'true'
-queries_per_second = 0
 
 if hybrid_load:
     ycsb_operator.set_analytical_schema([
@@ -151,12 +147,15 @@ def transactional_benchmark_runner(proc_num) -> (dict[bytes, dict], dict[bytes, 
     ycsb_generator = transactional_ycsb_generator(key_list, ycsb_operator, N_ENTITIES, zipf_const=ZIPF_CONST)
     timestamp_futures: dict[bytes, dict] = {}
     time.sleep(5)
+    interval = 1.0 / messages_per_second
     start = timer()
     for cur_sec in range(seconds):
         sec_start = timer()
         for i in range(messages_per_second):
-            if i % (messages_per_second // sleeps_per_second) == 0:
-                time.sleep(sleep_time)
+            target_time = sec_start + i * interval
+            now = timer()
+            if now < target_time:
+                time.sleep(target_time - now)
             operator, key, func_name, params = next(ycsb_generator)
             future = styx.send_event(operator=operator,
                                      key=key,
@@ -165,13 +164,10 @@ def transactional_benchmark_runner(proc_num) -> (dict[bytes, dict], dict[bytes, 
             timestamp_futures[future.request_id] = {"op": f'{func_name} {key}->{params[0]}'}
         styx.flush()
         sec_end = timer()
-        lps = sec_end - sec_start
-        if lps < 1:
-            time.sleep(1 - lps)
-        sec_end2 = timer()
-        print(f'Transaction latency per second: {sec_end2 - sec_start}')
+        if sec_end - sec_start < 1:
+            time.sleep(1 - (sec_end - sec_start))
     end = timer()
-    print(f'Average transaction latency per second: {(end - start) / seconds}')
+    print(f'Average transactional latency per second: {(end - start) / seconds}')
     styx.close()
     for key, metadata in styx.delivery_timestamps.items():
         timestamp_futures[key]["timestamp"] = metadata
@@ -185,20 +181,22 @@ def analytical_benchmark_runner(proc_num) -> (dict[bytes, dict], dict[bytes, dic
     ycsb_generator = ycsb_query_generator()
     timestamp_futures: dict[bytes, dict] = {}
     time.sleep(5)
+    interval = 1.0 / queries_per_second
     start = timer()
     for cur_sec in range(seconds):
         sec_start = timer()
         for i in range(queries_per_second):
+            target_time = sec_start + i * interval
+            now = timer()
+            if now < target_time:
+                time.sleep(target_time - now)
             query_id, query = next(ycsb_generator)
             future = styx.send_query(query)
             timestamp_futures[future.request_id] = {"q": query_id}
         styx.flush()
         sec_end = timer()
-        lps = sec_end - sec_start
-        if lps < 1:
-            time.sleep(1 - lps)
-        sec_end2 = timer()
-        print(f'Analytical latency per second: {sec_end2 - sec_start}')
+        if sec_end - sec_start < 1:
+            time.sleep(1 - (sec_end - sec_start))
     end = timer()
     print(f'Average analytical latency per second: {(end - start) / seconds}')
     styx.close()
