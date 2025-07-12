@@ -1,0 +1,18 @@
+services:
+  query-engine:
+    build:
+      context: .
+      dockerfile: query-engine/query-engine.dockerfile
+    image: dev/styx-query-engine:latest
+    volumes:
+      - ./query-engine/data:/usr/local/styx/data
+    deploy:
+      resources:
+        limits:
+          cpus: '7'
+    environment:
+      - INGRESS_TYPE=KAFKA
+      - KAFKA_URL=kafka1:19092
+      - QUERY_ENGINE_PORT=7000
+    env_file:
+      - env/minio.env

@@ -39,5 +39,10 @@ class FutureTimedOut(Exception):
     """
     pass
 
+
 class InvalidRangePartitioning(Exception):
+    pass
+
+
+class InvalidAnalyticalSchema(Exception):
     pass

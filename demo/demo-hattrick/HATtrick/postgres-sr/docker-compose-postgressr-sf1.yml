@@ -1,0 +1,82 @@
+services:
+  primary:
+    build:
+      context: ../.
+      dockerfile: ./postgres-sr/primary/Dockerfile
+    container_name: pg_primary
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: mydb
+    shm_size: 1g
+    command: >
+      postgres
+      -c hba_file=/etc/postgresql/pg_hba.conf
+      -c listen_addresses='*'
+      -c max_wal_size=2GB
+      -c checkpoint_timeout=30min
+      -c wal_keep_size=512MB
+      -c shared_buffers=512MB
+      -c work_mem=64MB
+      -c maintenance_work_mem=256MB
+      -c wal_buffers=16MB
+      -c wal_level=replica
+      -c max_wal_senders=10
+      -c hot_standby=on
+      -c max_parallel_workers=4
+      -c max_parallel_workers_per_gather=2
+      -c effective_cache_size=1GB
+      -c default_transaction_isolation=serializable
+    ports:
+      - "5432:5432"
+    deploy:
+      resources:
+        limits:
+          cpus: '5'
+          memory: 6g
+    volumes:
+      - primary_data:/var/lib/postgresql/data
+      - ./primary/pg_hba.conf:/etc/postgresql/pg_hba.conf
+    networks:
+      - pgnet
+
+  replica:
+    build:
+      context: ../.
+      dockerfile: ./postgres-sr/replica/Dockerfile
+    container_name: pg_replica
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: mydb
+      PGPASSWORD: replica_pass
+      PGDATA: /var/lib/postgresql/replica_data
+      SHARED_BUFFERS: 512MB
+      WORK_MEM: 128MB
+      MAINTENANCE_WORK_MEM: 256MB
+      WAL_BUFFERS: 16MB
+      MAX_STANDBY_STREAMING_DELAY: 900s
+      MAX_PARALLEL_WORKERS: 4
+      MAX_PARALLEL_WORKERS_PER_GATHER: 2
+      EFFECTIVE_CACHE_SIZE: 1GB
+    depends_on:
+      - primary
+    shm_size: 1g
+    ports:
+      - "5433:5432"
+    deploy:
+      resources:
+        limits:
+          cpus: '7'
+          memory: 6g
+    volumes:
+      - replica_data:/var/lib/postgresql/replica_data
+    networks:
+      - pgnet
+
+volumes:
+  primary_data:
+  replica_data:
+
+networks:
+  pgnet:

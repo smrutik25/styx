@@ -4,11 +4,16 @@ import struct
 import sys
 from struct import unpack
 from timeit import default_timer as timer
+from typing import Any
+
+from styx.common.message_types import MessageType
+from styx.common.types import OperatorPartition
 
 from .exceptions import SerializerNotSupported
 from .base_networking import BaseNetworking, MessagingMode
 from .logging import logging
-from .serialization import Serializer, cloudpickle_serialization, msgpack_serialization, pickle_serialization
+from .serialization import Serializer, cloudpickle_serialization, msgpack_serialization, pickle_serialization, \
+    zstd_msgpack_serialization
 from .util.aio_task_scheduler import AIOTaskScheduler
 
 
@@ -159,6 +164,8 @@ class NetworkingManager(BaseNetworking):
         self.send_message_calls = 0
         self.send_message_size = 0
         self.write_buffer_len = 0
+        self.peers: dict[int, tuple[str, int, int]] = {}
+        self.wait_remote_key_event: dict[OperatorPartition, dict[Any, asyncio.Event]] = {}
 
     async def close_all_connections(self):
         for pool in self.pools.values():
@@ -193,6 +200,36 @@ class NetworkingManager(BaseNetworking):
         self.send_message_time += end_time - start_time
         self.send_message_calls += 1
         self.send_message_size += sys.getsizeof(msg)
+
+    def set_peers(self, peers: dict[int, tuple[str, int, int]]):
+        self.peers = peers
+
+    async def request_key(self, operator_name: str, partition: int, key: Any, worker_id_old_part: tuple[int, int] | None):
+        operator_partition = (operator_name, partition)
+        if (worker_id_old_part is None or
+                (operator_partition in self.wait_remote_key_event and
+                 key in self.wait_remote_key_event[operator_partition])):
+            # If a request for that key is already made don't send it again
+            return
+        worker_id, old_partition = worker_id_old_part
+        host, port, _ = self.peers[worker_id]
+        if operator_partition in self.wait_remote_key_event:
+            self.wait_remote_key_event[operator_partition][key] = asyncio.Event()
+        else:
+            self.wait_remote_key_event[operator_partition] = {key: asyncio.Event()}
+        await self.send_message(host,
+                                port,
+                                (operator_partition, key, old_partition, self.host_name, self.host_port - 1000),
+                                MessageType.RequestRemoteKey,
+                                serializer=Serializer.MSGPACK)
+
+    async def wait_for_remote_key_event(self, operator_name: str, partition: int, key: Any):
+        operator_partition = (operator_name, partition)
+        await self.wait_remote_key_event[operator_partition][key].wait()
+
+    def key_received(self, operator_partition: OperatorPartition, key: Any):
+        operator_partition = tuple(operator_partition)
+        self.wait_remote_key_event[operator_partition][key].set()
 
     async def send_message_request_response(self,
                                             host,
@@ -235,11 +272,19 @@ class NetworkingManager(BaseNetworking):
         if serializer == Serializer.CLOUDPICKLE:
             msg = struct.pack('>B', msg_type) + struct.pack('>B', 0) + cloudpickle_serialization(msg)
         elif serializer == Serializer.MSGPACK:
-            msg = struct.pack('>B', msg_type) + struct.pack('>B', 1) + msgpack_serialization(msg)
+            ser_msg: bytes = msgpack_serialization(msg)
+            ser_id = 1
+            if len(ser_msg) > 1_048_576:
+                # If it's more than 1MB compress by default
+                ser_msg = zstd_msgpack_serialization(ser_msg, already_ser=True)
+                ser_id = 4
+            msg = struct.pack('>B', msg_type) + struct.pack('>B', ser_id) + ser_msg
         elif serializer == Serializer.PICKLE:
             msg = struct.pack('>B', msg_type) + struct.pack('>B', 2) + pickle_serialization(msg)
         elif serializer == Serializer.NONE:
             msg = struct.pack('>B', msg_type) + struct.pack('>B', 3) + msg
+        elif serializer == Serializer.COMPRESSED_MSGPACK:
+            msg = struct.pack('>B', msg_type) + struct.pack('>B', 4) + zstd_msgpack_serialization(msg)
         else:
             logging.error(f'Serializer: {serializer} is not supported')
             raise SerializerNotSupported()

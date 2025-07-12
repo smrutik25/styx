@@ -3,6 +3,7 @@ uvloop==0.21.0
 msgspec==0.19.0
 cloudpickle==3.1.1
 cityhash==0.4.8
+zstandard==0.23.0
 # monitoring
 psutil==7.0.0
 # Kafka
@@ -11,3 +12,5 @@ aiokafka==0.12.0
 minio==7.2.15
 # deathstar
 geopy
+# schema validation
+pydantic>=2.10

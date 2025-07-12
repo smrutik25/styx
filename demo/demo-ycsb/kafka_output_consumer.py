@@ -17,13 +17,13 @@ def all_egress_topics_created(topics: set[str], egress_topic_names: list[str]):
     return True
 
 
-async def consume(save_dir):
+async def consume(save_dir, hybrid_load):
 
     egress_topic_names: list[str] = g.get_egress_topic_names()
 
     print('Start consumer')
     records = []
-
+    query_records = []
     consumer = AIOKafkaConsumer(
         auto_offset_reset='earliest',
         value_deserializer=msgpack_deserialization,
@@ -50,20 +50,35 @@ async def consume(save_dir):
                 for msg in messages:
                     # print("consumed: ", msg.key, msg.value, msg.timestamp)
                     records.append((msg.key, msg.value, msg.timestamp))
+
+        if hybrid_load:
+            consumer.subscribe(topics=['styx-query-engine--OUT'])
+            while True:
+                data = await consumer.getmany(timeout_ms=10_000)
+                if not data:
+                    break
+                for messages in data.values():
+                    for msg in messages:
+                        query_records.append((msg.key, msg.value, msg.timestamp))
+
     finally:
         # Will leave consumer group; perform autocommit if enabled.
         await consumer.stop()
         pd.DataFrame.from_records(records,
                                   columns=['request_id', 'response', 'timestamp']).to_csv(f'{save_dir}/output.csv',
                                                                                           index=False)
+        if hybrid_load:
+            pd.DataFrame.from_records(query_records,
+                                      columns=['request_id', 'response', 'timestamp']).to_csv(f'{save_dir}/output_queries.csv',
+                                      index=False)
 
 
-def main(save_dir=None):
+def main(save_dir=None, hybrid_load=False):
     if save_dir is None:
         print("Save directory for the results not provided.")
         exit(1)
 
-    uvloop.run(consume(save_dir))
+    uvloop.run(consume(save_dir, hybrid_load))
 
 
 if __name__ == "__main__":

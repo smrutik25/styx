@@ -1,3 +1,4 @@
+import io
 from abc import abstractmethod, ABC
 import uuid
 
@@ -5,6 +6,7 @@ from types import ModuleType
 from typing import Type
 
 from cloudpickle import cloudpickle
+from minio import Minio
 
 from .styx_future import StyxFuture, StyxAsyncFuture
 from ..common.base_networking import BaseNetworking
@@ -12,7 +14,8 @@ from ..common.base_operator import BaseOperator
 from ..common.stateflow_graph import StateflowGraph
 from ..common.message_types import MessageType
 from ..common.serialization import cloudpickle_serialization, cloudpickle_deserialization, Serializer, \
-    msgpack_serialization
+    msgpack_serialization, zstd_msgpack_serialization
+from ..common.types import KVPairs
 
 
 class NotAStateflowGraph(Exception):
@@ -27,15 +30,24 @@ class BaseStyxClient(ABC):
 
     def __init__(self,
                  styx_coordinator_adr: str,
-                 styx_coordinator_port: int):
+                 styx_coordinator_port: int,
+                 minio: Minio | None = None):
         self._styx_coordinator_adr: str = styx_coordinator_adr
         self._styx_coordinator_port: int = styx_coordinator_port
         self._delivery_timestamps: dict[bytes, int] = {}
+        self._query_delivery_timestamps: dict[bytes, int] = {}
         self._current_active_graph: StateflowGraph | None = None
+        self.minio = minio
+        if self.minio is not None and not self.minio.bucket_exists("styx-snapshots"):
+            self.minio.make_bucket("styx-snapshots")
 
     @property
     def delivery_timestamps(self):
         return self._delivery_timestamps
+
+    @property
+    def query_delivery_timestamps(self):
+        return self._query_delivery_timestamps
 
     @staticmethod
     def _get_modules(stateflow_graph: StateflowGraph):
@@ -96,6 +108,17 @@ class BaseStyxClient(ABC):
                                                                 serializer=serializer)
         return request_id, serialized_value, partition
 
+    @staticmethod
+    def _prepare_kafka_query_message(query: str,
+                                     serializer: Serializer) -> tuple[bytes, bytes]:
+        event = (query,)
+        # needs to be uuid4 due to concurrent clients from the same machine
+        request_id = msgpack_serialization(uuid.uuid4().int >> 64)
+        serialized_value: bytes = BaseNetworking.encode_message(msg=event,
+                                                                msg_type=MessageType.ClientQuery,
+                                                                serializer=serializer)
+        return request_id, serialized_value
+
     @abstractmethod
     def close(self):
         raise NotImplementedError
@@ -118,12 +141,38 @@ class BaseStyxClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def send_batch_insert(self,
-                          operator: BaseOperator,
-                          partition: int,
-                          function: Type | str,
-                          key_value_pairs: dict[any, any],
-                          serializer: Serializer = Serializer.MSGPACK) -> bytes:
+    def send_query(self, query: str,
+                   serializer: Serializer = Serializer.MSGPACK) -> StyxFuture | StyxAsyncFuture:
+        raise NotImplementedError
+
+    def init_data(self,
+                  operator: BaseOperator,
+                  partition: int,
+                  key_value_pairs: KVPairs):
+        snapshot_name = f"data/{operator.name}/{partition}/0.bin"
+        sn_data: bytes = zstd_msgpack_serialization(key_value_pairs)
+        self.minio.put_object("styx-snapshots", snapshot_name, io.BytesIO(sn_data), len(sn_data))
+
+    def init_metadata(self, graph: StateflowGraph):
+        topic_partition_offsets = {(operator_name, partition): -1
+                                   for operator_name, operator in graph.nodes.items()
+                                   for partition in range(operator.n_partitions)}
+        output_offsets = {(operator_name, partition): -1
+                               for operator_name, operator in graph.nodes.items()
+                               for partition in range(operator.n_partitions)}
+        epoch_counter = 0
+        t_counter = 0
+        sn_data: bytes = zstd_msgpack_serialization((topic_partition_offsets,
+                                                     output_offsets,
+                                                     epoch_counter,
+                                                     t_counter))
+        self.minio.put_object("styx-snapshots",
+                              f"sequencer/0.bin",
+                              io.BytesIO(sn_data),
+                              len(sn_data))
+
+    @abstractmethod
+    def set_graph(self, graph: StateflowGraph):
         raise NotImplementedError
 
     @abstractmethod

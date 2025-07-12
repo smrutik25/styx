@@ -8,12 +8,19 @@ services:
     ports:
       - "8886:8888"
       - "8000:8000"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
     env_file:
       - env/minio.env
     environment:
       - KAFKA_URL=kafka1:19092
       - HEARTBEAT_LIMIT=5000
       - HEARTBEAT_CHECK_INTERVAL=500
+      - QUERY_ENGINE_HOST=query-engine
+      - QUERY_ENGINE_PORT=7000
+      - QUERY_ENGINE
 
   prometheus:
     image: prom/prometheus:v3.2.1
@@ -52,12 +59,10 @@ services:
       - DISCOVERY_PORT=8888
     env_file:
       - env/minio.env
-#    deploy:
-#      resources:
-#        limits:
-#          cpus: '2'
-#        reservations:
-#          cpus: '2'
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
 
 volumes:
   grafana_data:

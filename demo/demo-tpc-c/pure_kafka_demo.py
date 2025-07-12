@@ -3,8 +3,11 @@ import multiprocessing
 import os
 import sys
 import random
+from collections import defaultdict
 from datetime import datetime
+from typing import Any
 
+from minio import Minio
 from tqdm import tqdm
 
 from timeit import default_timer as timer
@@ -26,6 +29,9 @@ import rand
 import kafka_output_consumer
 import calculate_metrics
 
+
+random.seed(42)
+
 SAVE_DIR: str = sys.argv[1]
 threads = int(sys.argv[2])
 N_PARTITIONS = int(sys.argv[3])
@@ -38,16 +44,11 @@ STYX_PORT: int = 8886
 KAFKA_URL = 'localhost:9092'
 warmup_seconds = int(sys.argv[6])
 N_W = int(sys.argv[7])
+N_PARTITIONS = min(N_W, N_PARTITIONS)
 C_Per_District = 3000
 D_Per_Warehouse = 10
 N_D = N_W * D_Per_Warehouse
-N_C = N_W * 30_000
 N_I = 100_000
-N_S = N_W * 100_000
-N_H = N_W * 30_000
-N_O = N_W * 30_000
-N_NO = N_W * 9_000
-N_OL = N_W * 300_000
 
 MIN_OL_CNT: int = 5
 MAX_OL_CNT: int = 15
@@ -65,14 +66,14 @@ flush_interval = 100
 g = StateflowGraph('tpcc_benchmark', operator_state_backend=LocalStateBackend.DICT)
 ####################################################################################################################
 customer_operator.set_n_partitions(N_PARTITIONS)
-district_operator.set_n_partitions(min(N_D, N_PARTITIONS))
+district_operator.set_n_partitions(N_PARTITIONS)
 history_operator.set_n_partitions(N_PARTITIONS)
 item_operator.set_n_partitions(N_PARTITIONS)
 new_order_operator.set_n_partitions(N_PARTITIONS)
 order_operator.set_n_partitions(N_PARTITIONS)
 order_line_operator.set_n_partitions(N_PARTITIONS)
 stock_operator.set_n_partitions(N_PARTITIONS)
-warehouse_operator.set_n_partitions(min(N_W, N_PARTITIONS))
+warehouse_operator.set_n_partitions(N_PARTITIONS)
 new_order_txn_operator.set_n_partitions(N_PARTITIONS)
 customer_idx_operator.set_n_partitions(N_PARTITIONS)
 payment_txn_operator.set_n_partitions(N_PARTITIONS)
@@ -85,8 +86,10 @@ g.add_operators(customer_operator, district_operator, history_operator, item_ope
 def populate_warehouse(styx: SyncStyxClient):
     with open(os.path.join(script_path, "data/warehouse.csv"), "r") as f:
         reader = csv.reader(f, delimiter=",")
+        partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
         for _, line in tqdm(enumerate(reader), desc="Populating Warehouse"):
             warehouse_key = int(line[0])
+            partition: int = styx.get_operator_partition(warehouse_key, warehouse_operator)
             warehouse_data = {
                 "W_NAME": line[1],
                 "W_STREET_1": line[2],
@@ -97,18 +100,20 @@ def populate_warehouse(styx: SyncStyxClient):
                 "W_TAX": float(line[7]),
                 "W_YTD": float(line[8])
             }
-            styx.send_event(operator=warehouse_operator,
-                            key=warehouse_key,
-                            function='insert',
-                            params=(warehouse_data,))
+            partitions[partition][warehouse_key] = warehouse_data
+    for partition, partition_data in partitions.items():
+        print(f"Populating {warehouse_operator.name}:{partition}...")
+        styx.init_data(warehouse_operator, partition, partition_data)
 
 
 def populate_district(styx: SyncStyxClient):
     with open(os.path.join(script_path, "data/district.csv"), "r") as f:
         reader = csv.reader(f, delimiter=",")
+        partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
         for _, line in tqdm(enumerate(reader), desc="Populating District"):
             # Primary Key: (D_W_ID, D_ID)
             district_key = f'{line[1]}:{line[0]}'
+            partition: int = styx.get_operator_partition(district_key, district_operator)
             district_data = {
                 "D_ID": int(line[0]),
                 "D_W_ID": int(line[1]),
@@ -122,17 +127,14 @@ def populate_district(styx: SyncStyxClient):
                 "D_YTD": float(line[9]),
                 "D_NEXT_O_ID": int(line[10])
             }
-            styx.send_event(operator=district_operator,
-                            key=district_key,
-                            function='insert',
-                            params=(district_data,))
+            partitions[partition][district_key] = district_data
+    for partition, partition_data in partitions.items():
+        print(f"Populating {district_operator.name}:{partition}...")
+        styx.init_data(district_operator, partition, partition_data)
 
 
 def populate_customer(styx: SyncStyxClient):
-    c = 0
-    customer_index_data = {}
-    with open(os.path.join(script_path, "data/customer.csv"), "rb") as f:
-        num_lines = sum(1 for _ in f)
+    customer_index_data: dict[str, list[dict[str, str | int]]] = defaultdict(list)
     with open(os.path.join(script_path, "data/customer.csv"), "r") as f:
         reader = csv.reader(f, delimiter=",")
         partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
@@ -170,49 +172,38 @@ def populate_customer(styx: SyncStyxClient):
             else:
                 customers_per_district[customers_per_district_key] = [customer_data["C_LAST"]]
 
-            partitions[partition] |= {customer_key: customer_data}
+            partitions[partition][customer_key] = customer_data
 
-            if i % 1_000 == 0 or i == num_lines - 1:
-                for partition, kv_pairs in partitions.items():
-                    styx.send_batch_insert(operator=customer_operator,
-                                           partition=partition,
-                                           function='insert_batch',
-                                           key_value_pairs=kv_pairs)
-                partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
-
-            # create index for 2.5.2.2  Case 2
+            # create index for 2.5.2.2  Case 2  C_W_ID:C_D_ID:C_LAST
             customer_idx_key = f'{line[2]}:{line[1]}:{line[5]}'
-            customer_idx_data = {
+            customer_idx_value = {
                 "C_FIRST": line[3],
                 "C_ID": int(line[0]),
                 "C_D_ID": int(line[1]),
                 "C_W_ID": int(line[2])
             }
-            if customer_idx_key in customer_idx_data:
-                customer_idx_data[customer_idx_key].append(customer_idx_data)
-            else:
-                customer_idx_data[customer_idx_key] = [customer_idx_data]
+            customer_index_data[customer_idx_key].append(customer_idx_value)
 
-        partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
-        for i, (customer_idx_key, customer_idx_data) in enumerate(customer_index_data.items()):
+        for partition, partition_data in partitions.items():
+            print(f"Populating {customer_operator.name}:{partition}...")
+            styx.init_data(customer_operator, partition, partition_data)
+
+        # Final batch insert for customer index
+        index_partitions: dict[int, dict[str, list[str]]] = {p: {} for p in range(N_PARTITIONS)}
+        index_keys = list(customer_index_data.items())
+
+        for i, (customer_idx_key, customer_idx_values) in enumerate(index_keys):
             partition: int = styx.get_operator_partition(customer_idx_key, customer_idx_operator)
-            partitions[partition] |= {customer_idx_key: customer_idx_data}
-            if i % 1_000 == 0 or i == num_lines - 1:
-                for partition, kv_pairs in partitions.items():
-                    styx.send_batch_insert(operator=customer_idx_operator,
-                                           partition=partition,
-                                           function='insert_batch',
-                                           key_value_pairs=kv_pairs)
-                partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
-                c += 1
-                if c % flush_interval == 0:
-                    styx.flush()
+            sorted_customers = sorted(customer_idx_values, key=lambda x: x["C_FIRST"])
+            customer_ids = [f"{cust['C_W_ID']}:{cust['C_D_ID']}:{cust['C_ID']}" for cust in sorted_customers]
+            index_partitions[partition][customer_idx_key] = customer_ids
+
+        for partition, partition_data in index_partitions.items():
+            print(f"Populating {customer_idx_operator.name}:{partition}...")
+            styx.init_data(customer_idx_operator, partition, partition_data)
 
 
 def populate_history(styx: SyncStyxClient):
-    c = 0
-    with open(os.path.join(script_path, "data/history.csv"), "rb") as f:
-        num_lines = sum(1 for _ in f)
     with open(os.path.join(script_path, "data/history.csv"), "r") as f:
         reader = csv.reader(f, delimiter=",")
         partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
@@ -230,23 +221,13 @@ def populate_history(styx: SyncStyxClient):
                 "H_AMOUN": line[6],
                 "H_DATA": line[7],
             }
-            partitions[partition] |= {history_key: history_data}
-            if i % 1_000 == 0 or i == num_lines - 1:
-                for partition, kv_pairs in partitions.items():
-                    styx.send_batch_insert(operator=history_operator,
-                                           partition=partition,
-                                           function='insert_batch',
-                                           key_value_pairs=kv_pairs)
-                partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
-                c += 1
-                if c % flush_interval == 0:
-                    styx.flush()
+            partitions[partition][history_key] = history_data
+    for partition, partition_data in partitions.items():
+        print(f"Populating {history_operator.name}:{partition}...")
+        styx.init_data(history_operator, partition, partition_data)
 
 
 def populate_new_order(styx: SyncStyxClient):
-    c = 0
-    with open(os.path.join(script_path, "data/new_order.csv"), "rb") as f:
-        num_lines = sum(1 for _ in f)
     with open(os.path.join(script_path, "data/new_order.csv"), "r") as f:
         reader = csv.reader(f, delimiter=",")
         partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
@@ -259,23 +240,13 @@ def populate_new_order(styx: SyncStyxClient):
                 "NO_D_ID": int(line[1]),
                 "NO_W_ID": int(line[2])
             }
-            partitions[partition] |= {new_order_key: new_order_data}
-            if i % 1_000 == 0 or i == num_lines - 1:
-                for partition, kv_pairs in partitions.items():
-                    styx.send_batch_insert(operator=new_order_operator,
-                                           partition=partition,
-                                           function='insert_batch',
-                                           key_value_pairs=kv_pairs)
-                partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
-                c += 1
-                if c % flush_interval == 0:
-                    styx.flush()
+            partitions[partition][new_order_key]= new_order_data
+    for partition, partition_data in partitions.items():
+        print(f"Populating {new_order_operator.name}:{partition}...")
+        styx.init_data(new_order_operator, partition, partition_data)
 
 
 def populate_order(styx: SyncStyxClient):
-    c = 0
-    with open(os.path.join(script_path, "data/order.csv"), "rb") as f:
-        num_lines = sum(1 for _ in f)
     with open(os.path.join(script_path, "data/order.csv"), "r") as f:
         reader = csv.reader(f, delimiter=",")
         partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
@@ -293,23 +264,13 @@ def populate_order(styx: SyncStyxClient):
                 "O_OL_CNT": int(line[6]),
                 "O_ALL_LOCAL": bool(line[7])
             }
-            partitions[partition] |= {order_key: order_data}
-            if i % 1_000 == 0 or i == num_lines - 1:
-                for partition, kv_pairs in partitions.items():
-                    styx.send_batch_insert(operator=order_operator,
-                                           partition=partition,
-                                           function='insert_batch',
-                                           key_value_pairs=kv_pairs)
-                partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
-                c += 1
-                if c % flush_interval == 0:
-                    styx.flush()
+            partitions[partition][order_key] = order_data
+    for partition, partition_data in partitions.items():
+        print(f"Populating {order_operator.name}:{partition}...")
+        styx.init_data(order_operator, partition, partition_data)
 
 
 def populate_order_line(styx: SyncStyxClient):
-    c = 0
-    with open(os.path.join(script_path, "data/order_line.csv"), "rb") as f:
-        num_lines = sum(1 for _ in f)
     with open(os.path.join(script_path, "data/order_line.csv"), "r") as f:
         reader = csv.reader(f, delimiter=",")
         partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
@@ -329,23 +290,12 @@ def populate_order_line(styx: SyncStyxClient):
                 "OL_AMOUNT": float(line[8]),
                 "OL_DIST_INFO": line[9]
             }
-            partitions[partition] |= {order_line_key: order_line_data}
-            if i % 1_000 == 0 or i == num_lines - 1:
-                for partition, kv_pairs in partitions.items():
-                    styx.send_batch_insert(operator=order_line_operator,
-                                           partition=partition,
-                                           function='insert_batch',
-                                           key_value_pairs=kv_pairs)
-                partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
-                c += 1
-                if c % flush_interval == 0:
-                    styx.flush()
-
+            partitions[partition][order_line_key] = order_line_data
+    for partition, partition_data in partitions.items():
+        print(f"Populating {order_line_operator.name}:{partition}...")
+        styx.init_data(order_line_operator, partition, partition_data)
 
 def populate_item(styx: SyncStyxClient):
-    c = 0
-    with open(os.path.join(script_path, "data/item.csv"), "rb") as f:
-        num_lines = sum(1 for _ in f)
     with open(os.path.join(script_path, "data/item.csv"), "r") as f:
         reader = csv.reader(f, delimiter=",")
         partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
@@ -358,23 +308,13 @@ def populate_item(styx: SyncStyxClient):
                 "I_PRICE": float(line[3]),
                 "I_DATA": line[4]
             }
-            partitions[partition] |= {item_key: item_data}
-            if i % 1_000 == 0 or i == num_lines - 1:
-                for partition, kv_pairs in partitions.items():
-                    styx.send_batch_insert(operator=item_operator,
-                                           partition=partition,
-                                           function='insert_batch',
-                                           key_value_pairs=kv_pairs)
-                partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
-                c += 1
-                if c % flush_interval == 0:
-                    styx.flush()
+            partitions[partition][item_key] = item_data
+    for partition, partition_data in partitions.items():
+        print(f"Populating {item_operator.name}:{partition}...")
+        styx.init_data(item_operator, partition, partition_data)
 
 
 def populate_stock(styx: SyncStyxClient):
-    c = 0
-    with open(os.path.join(script_path, "data/stock.csv"), "rb") as f:
-        num_lines = sum(1 for _ in f)
     with open(os.path.join(script_path, "data/stock.csv"), "r") as f:
         reader = csv.reader(f, delimiter=",")
         partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
@@ -401,17 +341,10 @@ def populate_stock(styx: SyncStyxClient):
                 "S_REMOTE_CNT": int(line[15]),
                 "S_DATA": line[16]
             }
-            partitions[partition] |= {stock_key: stock_data}
-            if i % 1_000 == 0 or i == num_lines - 1:
-                for partition, kv_pairs in partitions.items():
-                    styx.send_batch_insert(operator=stock_operator,
-                                           partition=partition,
-                                           function='insert_batch',
-                                           key_value_pairs=kv_pairs)
-                partitions: dict[int, dict] = {p: {} for p in range(N_PARTITIONS)}
-                c += 1
-                if c % flush_interval == 0:
-                    styx.flush()
+            partitions[partition][stock_key] = stock_data
+    for partition, partition_data in partitions.items():
+        print(f"Populating {stock_operator.name}:{partition}...")
+        styx.init_data(stock_operator, partition, partition_data)
 
 
 def submit_graph(styx: SyncStyxClient):
@@ -421,29 +354,20 @@ def submit_graph(styx: SyncStyxClient):
 
 
 def tpc_c_init(styx: SyncStyxClient):
-    submit_graph(styx)
-    time.sleep(60)
+    styx.set_graph(g)
+    styx.init_metadata(g)
     populate_warehouse(styx)
-    styx.flush()
     populate_district(styx)
-    styx.flush()
     populate_customer(styx)
-    styx.flush()
     populate_history(styx)
-    styx.flush()
     populate_new_order(styx)
-    styx.flush()
     populate_order(styx)
-    styx.flush()
     populate_order_line(styx)
-    styx.flush()
     populate_item(styx)
-    styx.flush()
     populate_stock(styx)
-    styx.flush()
-    print('Data populated waiting for 1 minute')
-    # 1 min so that the init is surely done
-    time.sleep(60)
+    # Sleep for 5 seconds to be sure that all the data are in minio
+    time.sleep(5)
+    submit_graph(styx)
 
 
 def make_item_id() -> int:
@@ -454,48 +378,51 @@ def make_customer_id():
     return rand.nu_rand(1023, 1, C_Per_District)
 
 
-def get_new_order_transaction(c):
+def get_new_order_transaction(front_end_key):
     """Return parameters for NEW_ORDER"""
-    params = {
+    params: dict[str, Any] = {
         'W_ID': random.randint(1, N_W),
         'D_ID': random.randint(1, D_Per_Warehouse),
         'C_ID': make_customer_id(),
         'O_ENTRY_D': datetime.now().strftime("%m/%d/%Y, %H:%M:%S"),
     }
-    # 1% of transactions roll back
-    rollback = random.randint(1, 100) == 1
+
+    rollback = random.randint(1, 100) == 1  # 1% rollback chance
 
     params['I_IDS'] = []
     params['I_W_IDS'] = []
     params['I_QTYS'] = []
+
     ol_cnt = random.randint(MIN_OL_CNT, MAX_OL_CNT)
 
     for i in range(ol_cnt):
         if rollback and i + 1 == ol_cnt:
-            params['I_IDS'].append(N_I + 1)
+            params['I_IDS'].append(N_I + 1)  # Invalid ID triggers rollback
         else:
             i_id = make_item_id()
             while i_id in params['I_IDS']:
                 i_id = make_item_id()
             params['I_IDS'].append(i_id)
 
-        # 1% of items are from a remote warehouse
-        remote = (rand.number(1, 100) == 1)
+        # Decide if this item comes from a remote warehouse
+        remote = random.randint(1, 100) == 1  # 1% chance
         if N_W > 1 and remote:
             params['I_W_IDS'].append(
-                rand.number_excluding(
-                    1,
-                    N_W,
-                    params['W_ID']
-                )
+                rand.number_excluding(1, N_W, params['W_ID'])
             )
         else:
             params['I_W_IDS'].append(params['W_ID'])
+
         params['I_QTYS'].append(rand.number(1, MAX_OL_QUANTITY))
-    return new_order_txn_operator, c, 'new_order', (params,)
+
+    # Ensure at least one item is from the local warehouse
+    if not any(w_id == params['W_ID'] for w_id in params['I_W_IDS']):
+        params['I_W_IDS'][random.randint(0, ol_cnt - 1)] = params['W_ID']
+
+    return new_order_txn_operator, front_end_key, 'new_order', (params,)
 
 
-def get_payment_transaction(c):
+def get_payment_transaction(front_end_key):
     """Return parameters for PAYMENT"""
     x = rand.number(1, 100)
     y = rand.number(1, 100)
@@ -504,49 +431,47 @@ def get_payment_transaction(c):
     d_id = rand.number(1, D_Per_Warehouse)
 
     h_amount = rand.fixed_point(2, MIN_PAYMENT, MAX_PAYMENT)
-    h_date = datetime.now().strftime("%m/%d/%Y, %H:%M:%S")
+    h_date = datetime.now()  # Keep as datetime for flexibility
 
-    # 85%: paying through own warehouse (or there is only 1 warehouse)
+    # 85% local payment
     if N_W == 1 or x <= 85:
         c_w_id = w_id
         c_d_id = d_id
-    # 15%: paying through another warehouse:
     else:
-        # select in range [1, num_warehouses] excluding w_id
         c_w_id = rand.number_excluding(1, N_W, w_id)
         assert c_w_id != w_id
         c_d_id = rand.number(1, D_Per_Warehouse)
 
-    # 60%: payment by last name
     if y <= 60:
+        # Payment by last name using TPC-C last name generation
         c_id = None
-        c_last = random.choice(customers_per_district[(c_w_id, c_d_id)])
-    # 40%: payment by id
+        c_last = rand.make_last_name(rand.nu_rand(255, 0, 999))
     else:
-        assert y > 60
         c_id = make_customer_id()
         c_last = None
+
     params = {
         'W_ID': w_id,
         'D_ID': d_id,
         'H_AMOUNT': h_amount,
-        "C_W_ID": c_w_id,
-        "C_D_ID": c_d_id,
-        "C_ID": c_id,
-        "C_LAST": c_last,
-        "H_DATE": h_date
+        'C_W_ID': c_w_id,
+        'C_D_ID': c_d_id,
+        'C_ID': c_id,
+        'C_LAST': c_last,
+        'H_DATE': h_date
     }
-    return payment_txn_operator, c, 'payment', (params,)
+    return payment_txn_operator, front_end_key, 'payment', (params,)
 
 
-def tpc_c_workload_generator():
+def tpc_c_workload_generator(proc_num):
     c = 0
     while True:
+        front_end_key = f'{proc_num}:{c}'
         coin = rand.number(1, 100)
         if coin < 52:
-            yield get_new_order_transaction(c)
+            yield get_new_order_transaction(front_end_key)
         else:
-            yield get_payment_transaction(c)
+            yield get_payment_transaction(front_end_key)
         c += 1
 
 
@@ -554,8 +479,9 @@ def benchmark_runner(proc_num) -> dict[bytes, dict]:
     print(f'Generator: {proc_num} starting')
     styx = SyncStyxClient(STYX_HOST, STYX_PORT, kafka_url=KAFKA_URL)
     styx.open(consume=False)
-    tpc_c_generator = tpc_c_workload_generator()
+    tpc_c_generator = tpc_c_workload_generator(proc_num)
     timestamp_futures: dict[bytes, dict] = {}
+    time.sleep(5)
     start = timer()
     for _ in range(seconds):
         sec_start = timer()
@@ -584,11 +510,13 @@ def benchmark_runner(proc_num) -> dict[bytes, dict]:
 
 
 def main():
-    styx_client = SyncStyxClient(STYX_HOST, STYX_PORT, kafka_url=KAFKA_URL)
-
-    styx_client.open(consume=False)
+    minio = Minio('localhost:9000', access_key='minio', secret_key='minio123', secure=False)
+    styx_client = SyncStyxClient(STYX_HOST, STYX_PORT, kafka_url=KAFKA_URL, minio=minio)
     tpc_c_init(styx_client)
-    styx_client.close()
+    del styx_client
+    print('Data populated waiting for 1 minute')
+    # 1 min so that the init is surely done
+    time.sleep(60)
 
     with Pool(threads) as p:
         results = p.map(benchmark_runner, range(threads))
@@ -597,8 +525,8 @@ def main():
     pd.DataFrame({"request_id": list(results.keys()),
                   "timestamp": [res["timestamp"] for res in results.values()],
                   "op": [res["op"] for res in results.values()]
-                  }).to_csv(f'{SAVE_DIR}/client_requests.csv',
-                            index=False)
+                  }).sort_values(by="timestamp").to_csv(f'{SAVE_DIR}/client_requests.csv',
+                                                        index=False)
 
 
 if __name__ == "__main__":
