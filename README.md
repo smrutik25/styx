@@ -31,6 +31,9 @@ pip install pandas numpy matplotlib
 *   [`grafana`](https://github.com/delftdata/styx/tree/main/grafana)
     The confinguration files for the deployment of our visualization dashboards.
 
+*   [`query-engine`](https://github.com/smrutik25/styx/tree/main/query-engine)
+    Styx Query Engine
+
 *   [`styx-package`](https://github.com/delftdata/styx/tree/main/styx-package)
     The Styx framework Python package.
 
@@ -57,7 +60,7 @@ From the projects root:
 To run a single experiment:
 
 ```
-./scripts/run_experiment.sh [WORKLOAD_NAME] [INPUT_RATE] [N_KEYS] [N_PART] [ZIPF_CONST] [CLIENT_THREADS] [TOTAL_TIME] [SAVING_DIR] [WARMUP_SECONDS] [EPOCH_SIZE]
+./scripts/run_experiment.sh [WORKLOAD_NAME] [INPUT_RATE] [N_KEYS] [N_PART] [ZIPF_CONST] [CLIENT_THREADS] [TOTAL_TIME] [SAVING_DIR] [WARMUP_SECONDS] [EPOCH_SIZE] [QUERY_ENGINE] [QUERY_THREADS] [QUERY_RATE]
 ```
 
 e.g. to run the YCSB-T workload with 1000000 keys at 1000 TPS, 4 partitions, 
@@ -65,8 +68,9 @@ e.g. to run the YCSB-T workload with 1000000 keys at 1000 TPS, 4 partitions,
 a batch size of 1000 and save the results in the results folder: `./scripts/run_experiment.sh ycsbt 1000 1000000 4 0.0 1 60 results 10 1000`
 
 The options for `[WORKLOAD_NAME]` are `ycsbt` for YCSB-T, `dhr` for deathstar hotel reservation,
-`dmr` for deathstar movie review and `tpcc` for  TPC-C. `[ZIPF_CONST]` only affects the `ycsbt` workload.
+`dmr` for deathstar movie review, `tpcc` for  TPC-C, `hat` to run HATtrick benchmark. `[ZIPF_CONST]` only affects the `ycsbt` workload.
 
+Query Engine is supported within `ycsbt` and `hat` benchmarks with optional parameters. These parameters `[QUERY_ENGINE], [QUERY_THREADS], [QUERY_RATE]` are query_engine flag (defaults to false), number of querying clients, and rate of querying per client respectively.
 
 > Note: If you want to change the number of CPUs per worker you have to go to the docker-compose.yml and change the WORKER_THREADS
 > value + the resources along with the /scripts/start_styx_cluster.sh $threads_per_worker. In the paper experiments we used 8.
