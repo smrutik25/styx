@@ -1,6 +1,6 @@
 ## Query Engine
 
-The Query Engine introduces querying capabilities within Styx (H-Styx or Hybrid Styx), enabling low-latency transactions as well as querying and aggregation using DuckDB. This results in a serverless, self-contained SFaaS system that can support both OLTP and OLAP (HTAP) capabilities. 
+The Query Engine introduces querying capabilities within Styx (H-Styx or Hybrid Styx), enabling low-latency transactions as well as querying and aggregation using DuckDB. This results in a serverless, self-contained SFaaS system that can support both OLTP and OLAP (HTAP) capabilities.
 
 This is the code for Query Engine container, that can be added into Styx deployment using a configuration flag. Steps to run this along with configurations are specified in the main [`README.md`](https://github.com/smrutik25/styx/tree/main) 
 
@@ -15,3 +15,5 @@ The stateful functions for HATtrick are present in [`demo/demo-hattrick/function
 ### Thesis Project
 
 This code is the implementation of the Master's thesis titled: [Global State Querying in Stream Processing using Snapshots](https://repository.tudelft.nl/record/uuid:60d4f13b-19d7-4f3e-9477-75566477d7df)
+
+Here is a short article explaining the real-world use of this project: [Thesis Article](https://docs.google.com/document/d/1qF-CGRLI3SitlyiJLl5hiT0S_nNF0quoTx9rlpUMpWc)
